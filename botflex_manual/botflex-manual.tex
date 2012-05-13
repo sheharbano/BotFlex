@@ -66,8 +66,30 @@ and Attack...
 \section{Capabilities} 
 
 \subsection{What BotFlex can do}
+\begin{itemize}
+\item Should be deployed close to home.
+\end{itemize}
+
 \subsection{What BotFlex cannot do}
+\begin{itemize}
+\item Won't do well in Bro Cluster setting because of the scan scripts.
+Even otherwise, this tool is not meant for monitoring large traffic.
+\end{itemize}
+
 \subsection{To-Do}
+\begin{itemize}
+\item Replace the file reading script in bro.bif, util .h and util.cc
+with the input framework that is expected to be released with Bro 2.1
+\item If the input framework comes with Bro 2.1, arrange for the values
+in config.txt to be changed at runtime.
+\item Can we run BotFlex interactively?
+\item Package it as a proper software.
+\item Arrange for the values in config.txt to be set
+via switches in command line.
+\item Make skeleton attack.bro
+\item Test communication with a Broccoli enabled remote server
+\end{itemize}
+
 
 \section{Extending BotFlex}
 There is a standard way to interface scripts with the major events 
@@ -89,7 +111,7 @@ globally deployed sensors (similar to honeypots).
 A very simple check in the context of the \textit{CnC}
 module is to check if an IP within the monitored network
 established communication with an IP from a CnC blacklist.
-It would be superfluous to write a script \textit{cnc\_match.bro}
+It would be superfluous to write a script \textit{cnc\textunderscore match.bro}
 that has only a few lines of code to generate the event 
 \textit{cnc-match}. On the other hand, spam generation is an 
 important aspect of botnet \textit{Attack} phase, particularly 
@@ -119,7 +141,7 @@ the individual cases A and B.
 \subsection{Case A: Simple Event}
 Every phase of botnet life cycle is placed in a folder
 named after the phase to which it corresponds. Within the
-folder, the script with the name \textit{<dir\_name>.bro} 
+folder, the script with the name \textit{<dir\textunderscore name>.bro} 
 accomodates simple events. The best way to understand the
 process is to make use of an example.
 
@@ -134,7 +156,7 @@ you want to be logged and shared with other scripts if/when
 required.
 \item Update \textit{function getXRecord} to define intialization
 of the newly added entries.
-\item Add name of the simple \textit{event e} to the enum \textit{X\_tributary}
+\item Add name of the simple \textit{event e} to the enum \textit{X\textunderscore tributary}
 in \textit{export} block.
 \item Add information about the recently added data items to
 \textit{record Info} so that it can be logged.
@@ -153,9 +175,9 @@ boolean value to indicate whether or not the major
 \textit{event X} was triggered. 
 \item This step pertains to when \textit{function evaluate}
 yields `True'. Clean up the data relevant to the simple 
-\textit{event e} from \textit{table\_X}. Additionally, delete the entry of 
-\textit{event e} as defined in \textit{enum X\_tributary} from 
-\textit{tb\_tributary} in \textit{table\_X}.  
+\textit{event e} from \textit{table\textunderscore X}. Additionally, delete the entry of 
+\textit{event e} as defined in \textit{enum X\textunderscore tributary} from 
+\textit{tb\textunderscore tributary} in \textit{table\textunderscore X}.  
 \end{itemize}
 If simple \textit{event e} uses some threshold values, the
 following additional steps need to be taken to ensure they 
@@ -164,22 +186,22 @@ can be tweaked by editing the \textit{config.txt} file.
 \item Define the thresholds in \textit{export} block with some
 default value.
 \item Make entry in the file \textit{botflex/config.txt}
-in this format:/sl{<X> <threshold\_name> <value>}
-\item In \textit{event bro\_init}, arrange for the threshold value
+in this format:/sl{<X> <threshold\textunderscore name> <value>}
+\item In \textit{event bro\textunderscore init}, arrange for the threshold value
 to be pulled from the data structure that holds configurable
 values as specified in \textit{botflex/config.txt}.
 The typical syntax is:
 \begin{verbatim}
-if ( <threshold\_name> in Config::table\_config["X"] )
+if ( <threshold_name> in Config::table_config["X"] )
 				{
-				<threshold\_name> = func(Config::table\_config["X"]["threshold\_name"]);
+				<threshold_name> = func(Config::table_config["X"]["threshold_name"]);
 				}
 \end{verbatim}
 
-Note that if \textit{threshold\_name} is of type \textit{string}, 
+Note that if \textit{threshold\textunderscore name} is of type \textit{string}, 
 \textit{func} in the above snippet might be skipped altogether. 
 In most cases, the \textit{string} value needs to be converted into
-proper format before handing it over from \textit{Config::table\_config}
+proper format before handing it over from \textit{Config::table\textunderscore config}
 to the script variable. The appropriate conversion function can be 
 found in Bro's own list of utility functions in \textit{bro/src/bro.bif}
 and \textit{bro/src/strings.bif}. Additionally, BotFlex also offers a few
@@ -208,7 +230,7 @@ events with the same botnet lifecycle phase. On the other hand,
 if \textit{Y} is a complex event but not entirely independent, you
 can report \textit{event Y} to \textit{X.bro}. This is the same as 
 handling \textit{event Y} in \textit{X.bro}. Obviosuly, you will need to
-make appropriate entries in \textit{X\_tributary}, \textit{XRecord} and 
+make appropriate entries in \textit{X\textunderscore tributary}, \textit{XRecord} and 
 \textit{getXRecord()}.
 
 \subsection{Modifying Correlation Module}
@@ -232,10 +254,10 @@ that are distinct to y or Y have been specifically identified:
 \item (For \textit{event Y}) Write event handler for \textit{event Y}.
 \item Make additional entries in \textit{CorrelationRecord}.
 \item Add initialization logic for these entries in  
-\textit{get\_correlation\_record}
+\textit{get\textunderscore correlation\textunderscore record}
 \item Update relevant entries in the event handler
-and if certain conditions are met, update \textit{tb\_tributary} in
-\textit{table\_tributary} and trigger the \textit{evaluate} function.
+and if certain conditions are met, update \textit{tb\textunderscore tributary} in
+\textit{table\textunderscore tributary} and trigger the \textit{evaluate} function.
 If the evaluation succeeds (i.e. returns True), clean up. 
 \end{itemize}
 
@@ -259,12 +281,13 @@ information of interest from the file.
 remote party, it is not justifiable to send the entire log file
 to R. 
   
-For this reason, we maintain a data structure \textit{table\_bot}
+For this reason, we maintain a data structure \textit{table\textunderscore bot}
 that contains a summary of activities per host that was classified
 as a bot. To add Y or y to this table, make appropriate entries in
-\textit{BotRecord}, \textit{get\_bot\_record}, and other get\_* records if 
+\textit{BotRecord}, \textit{get\textunderscore bot\textunderscore record}, 
+and other get\textunderscore * records if 
 applicable. Wherever event related to Y or y is handled, make sure 
-you update the corresponding values in \textit{table\_bot}.
+you update the corresponding values in \textit{table\textunderscore bot}.
 \end{itemize}
       
 \section{Installation}
@@ -283,7 +306,7 @@ inherited from Bro.
 	bro.tar.gz). For details, please look at Appendix (this is not optional).
 \item Extract to a place of your choice, but remember the path.
 \item cd to the folder where Bro was extracted and modify bro source code as 
-   described in botflex/bro\_modifications (5 minutes of copy pasting :-)). 
+   described in botflex/bro\textunderscore modifications (5 minutes of copy pasting :-)). 
 \item Assuming you are still in the directory where bro was extracted (bro),
    do the usual (i) ./configure (ii) make (iii) make install
 \item Move botflex to /usr/local/bro/share/bro/site.
@@ -321,12 +344,14 @@ To cut a long story short, we further summarize Bro download here:
 \item Get dependencies:
    (RPM/RedHat based Linux)
    \begin{verbatim}
-   sudo yum install cmake make gcc gcc-c++ flex bison libpcap-devel openssl-devel python-devel swig zlib-        	devel file-devel
+   sudo yum install cmake make gcc gcc-c++ flex bison libpcap-devel 
+   openssl-devel python-devel swig zlib-devel file-devel
    \end{verbatim}
    
    (DEB/Debian-based Linux)
    \begin{verbatim}
-   sudo apt-get install cmake make gcc g++ flex bison libpcap-dev libssl-dev python-dev swig zlib1g-dev libmagic-dev
+   sudo apt-get install cmake make gcc g++ flex bison libpcap-dev 
+   libssl-dev python-dev swig zlib1g-dev libmagic-dev
    \end{verbatim}
 
    (Others)
