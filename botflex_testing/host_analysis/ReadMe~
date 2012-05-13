@@ -1,0 +1,11 @@
+Based on a list of CnC server list and a list of subnets forming
+the monitored/local network, this script lists unique active hosts
+as they form connections. Based on whether a host contacts a known 
+CnC server from the given list, each unique host is tagged as Bot
+or Benign (results in host_analyzer.log).
+
+Note that this will run only on the Bro that has been modified for
+BotFlex, because Bro does not support file reading as we speak.
+For building a BotFlex speccific Bro, please refer to botflex_manual.pdf
+in a similar named folder in the root directory. Alternately, ReadMe
+inside botflex/ can also be used.   

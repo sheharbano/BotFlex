@@ -1,0 +1,7 @@
+This folder contains scripts that were modified in Bro's source code.
+Each file in this folder is named after the original file in Bro source
+code that was modified. For example, the script in bro.bif should be added
+to the corresponding file in Bro source code, i.e., /bro/src/bro.bif.
+
+For BotFlex to run properly, Bro must be built from source AFTER applying 
+these modifications. 

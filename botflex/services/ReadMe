@@ -1,0 +1,1 @@
+You need to add blacklist_service.sh to crontab. You may ignore the start.sh script.

@@ -1,0 +1,3 @@
+https://spyeyetracker.abuse.ch/blocklist.php?download=ipblocklist
+https://palevotracker.abuse.ch/blocklists.php?download=ipblocklist
+https://zeustracker.abuse.ch/blocklist.php?download=ipblocklist

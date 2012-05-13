@@ -1,0 +1,24 @@
+function read_file%(path: string%): string_set
+	%{
+	vector<std::string> file_lines=read_file(path->CheckString());
+	TableVal* tv = new TableVal(string_set);
+	//unsigned int sz = file_lines.size();
+
+	for(unsigned int i=0;i<file_lines.size();i++)
+	{
+		StringVal* sv=new StringVal(file_lines[i].c_str());
+		tv->Assign(sv,0);
+	}
+
+	/*ListVal* idxs = tv->ConvertToPureList();
+	for ( int i = 0; i < idxs->Length(); ++i )
+		{
+		Val* key = idxs->Index(i);
+		const char* str = key->AsStringVal()->CheckString();
+		cout << str << "___";
+		}*/ 
+	return tv;
+	%}
+
+
+

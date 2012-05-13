@@ -1,0 +1,35 @@
+config local_net 115.186.0.0/16,58.65.181.0/24
+
+scan th_addr_scan 50
+scan th_addr_scan_critical 10
+scan th_port_scan 20
+scan th_low_port_troll 10
+scan wnd_addr_scan 15mins 
+scan wnd_port_scan 15mins
+scan evaluation_mode OR
+
+exploit th_ssh_login 10
+exploit wnd_breakin 15mins
+exploit wnd_exploit 2mins
+exploit evaluation_mode OR
+exploit evaluation_breakin_mode OR
+
+egg th_disguised_exe 1
+egg wnd_egg 15mins
+egg evaluation_mode OR
+
+cnc th_dns_failure 20
+cnc evaluation_mode OR
+cnc wnd_cnc 5mins
+
+sqli th_sqli_attempt 4
+sqli wnd_sqli 10mins
+sqli evaluation_mode OR
+
+spam th_mx_queries 0
+spam th_smtp 10 
+spam wnd_spam 2mins
+spam evaluation_mode OR
+
+correlation wnd_correlation 6hrs
+correlation wnd_bot 1day

@@ -1,0 +1,23 @@
+config local_net 115.186.0.0/16
+
+scan th_addr_scan 50
+scan th_addr_scan_critical 10
+scan th_port_scan 50
+scan th_low_port_troll 10
+scan wnd_addr_scan 15mins 
+scan wnd_port_scan 15mins
+scan evaluation_mode OR
+
+exploit th_ssh_login 1
+exploit wnd_breakin 15mins
+exploit wnd_exploit 30mins
+exploit evaluation_mode OR
+
+cnc th_dns_failure 20
+cnc evaluation_mode OR
+cnc wnd_cnc 15mins
+
+egg th_tcymru_match 1
+egg th_disguised_exe 2
+egg wnd_egg 15mins
+egg evaluation_mode OR

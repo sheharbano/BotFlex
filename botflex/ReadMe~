@@ -1,0 +1,74 @@
+============================================================================
+
+			Getting BotFlex to work
+
+============================================================================
+
+My apologies for the installation process being so 'manual'! BotFlex
+has not been packaged per se. This will happen soon, though. Until
+that happens, here is a quick guide that explains how to get BotFlex 
+to work (Nix only :-) Tested on RedHat and Deb). The good news is that 
+BotFlex does not have any additional dependencies except for the ones it 
+inherited from Bro. 
+
+1. Download botflex from https://github.com/sheharbano/bsg/tree/master/botflex.
+1. Download Bro source (which is a compressed folder of the form bro.tar.gz).
+   For details, please look at Appendix (this is not optional).
+2. Extract to a place of your choice, but remember the path.
+2. cd to the folder where Bro was extracted and modify bro source code as 
+   described in botflex/bro_modifications (5 minutes of copy pasting :-)). 
+3. Assuming you are still in the directory where bro was extracted (bro),
+   do the usual (i) ./configure (ii) make (iii) make install
+4. Move botflex to /usr/local/bro/share/bro/site.
+   Note: The above is the typical directory hierarchy of Bro unless you have	
+         specifically changed the path during ./configure stage. If that's
+	 the case, use the path you specified during configuration.
+5. For best results, considering modifying 
+   /usr/local/bro/share/bro/site/botflex/config.txt
+   according to your own environment. In particular, take time to
+   specify local network. The default thresholds will be effective unless
+   changed in the file mentioned above.
+6. Add the following line to /usr/local/bro/share/bro/site/local.bro
+   @load botflex/detection/correlation/correlation
+7. We are all set now. For live traffic analysis, do 
+   bro -i <interface> local.bro
+   For analyzing a previously generated trace file, do
+   bro -r <file.pcap> local.bro
+8. Log files will be generated in your current directory. Bots are 
+   listed in correlation.log (TO-DO). Other log filenames are self 
+   explanatory.
+ 
+ 
+=============================================================================
+
+				Appendix
+
+=============================================================================
+
+--------------------------Installing Bro-------------------------------------
+
+The detailed quickstart guide can be found at http://bro-ids.org/documentation/quickstart.html.
+To cut a long story short, we further summarize Bro download here:
+
+1. Download Bro: 
+   git clone --recursive git://git.bro-ids.org/bro
+2. Get dependencies:
+   (RPM/RedHat based Linux)
+   sudo yum install cmake make gcc gcc-c++ flex bison libpcap-devel openssl-devel python-devel swig zlib-devel file-devel
+   (DEB/Debian-based Linux)
+   sudo apt-get install cmake make gcc g++ flex bison libpcap-dev libssl-dev python-dev swig zlib1g-dev libmagic-dev
+   (Others)
+   Check the above page. Haven't tested on other platforms.
+3. Set path.
+   (Bourne-shell syntax)
+   export PATH=/usr/local/bro/bin:$PATH
+   (C-shell syntax) 
+   setenv PATH /usr/local/bro/bin:$PATH
+
+======================###				
+		       ###
+    Sheharbano		####
+		       ### 
+======================###
+
+
