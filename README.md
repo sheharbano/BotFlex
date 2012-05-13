@@ -1,4 +1,4 @@
 BotFlex
 =======
 
-BotFlex is an open source tool or bot detection and analysis
+BotFlex is an open source tool for bot detection and analysis
