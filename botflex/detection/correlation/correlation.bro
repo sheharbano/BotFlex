@@ -627,5 +627,5 @@ event Egg::egg_upload( ts: time, src_ip: addr, egg_url: string, md5: string,
 
 event bro_done()
 	{
-	#print table_bot;
+	print table_bot;
 	}
