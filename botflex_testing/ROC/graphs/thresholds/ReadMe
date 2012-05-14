@@ -1,0 +1,4 @@
+This folder contains the thresholds used for plotting each graph in the parent directory.
+The format of each file is
+
+Threshold	Detection(TP)rate	Miss(FP)Rate
