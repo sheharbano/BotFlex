@@ -208,8 +208,6 @@ if __name__ == "__main__":
 		for field in dict_bh[record]:
 			tmp = re.sub(r'\s*\n\s*', "$", field.strip(), 0, 0)
 			tmp2 = re.sub(r'\s{2,}', "", tmp.strip(), 0, 0)
-			print field
-			print "----------------------------------------------------"
 			f.write("%s\t" %(tmp2) )
 		f.write("\n")
 
