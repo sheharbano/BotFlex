@@ -1,4 +1,4 @@
-##! A slightly modified version of scan.bro (which can be found in
+##! A nmodified version of scan.bro (which can be found in
 ##! the contributed scripts in Bro's git <PROVIDE LINK> ). This script
 ##! provides input to botflex-scan.bro.
 ##! The term critical in the context of address scan means whether the
@@ -29,16 +29,6 @@ export {
 		AddressScanInbound,
 		## Apparent flooding backscatter seen from source.
 		BackscatterSeen,
-
-		## Summary of scanning activity.
-		ScanSummary,
-		## Summary of distinct ports per scanner.
-		PortScanSummary,
-		## Summary of distinct low ports per scanner.
-		LowPortScanSummary,
-
-		## Source reached :bro:id:`Scan::shut_down_thresh`
-		ShutdownThresh,
 		## Source touched privileged ports.
 		LowPortTrolling,
 	};
@@ -47,77 +37,21 @@ export {
 	# Can lead to false positives due to UDP fanout from some P2P apps.
 	const suppress_UDP_scan_checks = F &redef;
 
-	const activate_priv_port_check = T &redef;
-	const activate_landmine_check = F &redef;
-	const landmine_thresh_trigger = 5 &redef;
-
-	const landmine_address: set[addr] &redef;
-
-	const scan_summary_trigger = 25 &redef;
-	const port_summary_trigger = 20 &redef;
-	const lowport_summary_trigger = 10 &redef;
-
-	# Raise ShutdownThresh after this many failed attempts
-	const shut_down_thresh = 100 &redef;
-
 	# Which services should be analyzed when detecting scanning
 	# (not consulted if analyze_all_services is set).
 	const analyze_services: set[port] &redef;
 	const analyze_all_services = T &redef;
 
-	# Track address scaners only if at least these many hosts contacted.
-	const addr_scan_trigger = 0 &redef;
-
-	# Ignore address scanners for further scan detection after
-	# scanning this many hosts.
-	# 0 disables.
-	const ignore_scanners_threshold = 0 &redef;
-
-	# Report a scan of peers at each of these points.
-	const report_peer_scan: vector of count = {
-		50
-	} &redef;
-
-	const report_critical_peer_scan: vector of count = {
-		10
-	} &redef;
-
-	const report_outbound_peer_scan: vector of count = {
-		50
-	} &redef;
-
-	const report_critical_outbound_peer_scan: vector of count = {
-		10
-	} &redef;
-
-	# Report a scan of ports at each of these points.
-	const report_port_scan: vector of count = {
-		50
-	} &redef;
-
-	# Once a source has scanned this many different ports (to however many
-	# different remote hosts), start tracking its per-destination access.
-	const possible_port_scan_thresh = 20 &redef;
-
+	## Thresholds for triggering address and port scan
+	const th_addr_scan = 60 &redef;
+	const th_addr_scan_critical = 10 &redef;
+	const th_port_scan = 10 &redef;
 	# Threshold for scanning privileged ports.
-	const priv_scan_trigger = 5 &redef;
+	const th_low_port_troll = 5 &redef;
+
 	const troll_skip_service = {
 		25/tcp, 21/tcp, 22/tcp, 20/tcp, 80/tcp,
 	} &redef;
-
-	const report_accounts_tried: vector of count = {
-		20, 100, 1000, 10000, 100000, 1000000,
-	} &redef;
-
-	const report_remote_accounts_tried: vector of count = {
-		100, 500,
-	} &redef;
-
-	# Report a successful password guessing if the source attempted
-	# at least this many.
-	const password_guessing_success_threshhold = 20 &redef;
-
-	const skip_accounts_tried: set[addr] &redef;
 
 	const addl_web = {
 		81/tcp, 443/tcp, 8000/tcp, 8001/tcp, 8080/tcp, }
@@ -151,73 +85,29 @@ export {
 	global check_scan:
 		function(c: connection, established: bool, reverse: bool): bool;
 
-	# The following tables are defined here so that we can redef
-	# the expire timeouts.
-	# FIXME: should we allow redef of attributes on IDs which
-	# are not exported?
-
 	# How many different hosts connected to with a possible
 	# backscatter signature.
 	global distinct_backscatter_peers: table[addr] of table[addr] of count
 		&read_expire = 15 min;
-
-	# Expire functions that trigger summaries.
-	global scan_summary:
-		function(t: table[addr] of set[addr], orig: addr): interval;
-	global port_summary:
-		function(t: table[addr] of set[port], orig: addr): interval;
-	global lowport_summary:
-		function(t: table[addr] of set[port], orig: addr): interval;
-
-	# Indexed by scanner address, yields # distinct peers scanned.
-	# pre_distinct_peers tracks until addr_scan_trigger hosts first.
-	global pre_distinct_peers: table[addr] of set[addr]
-		&create_expire = 15 mins &redef;
 	
 	const wnd_addr_scan = 15mins &redef;
 	const wnd_port_scan = 15mins &redef;
 
-	global distinct_peers: table[addr] of set[addr]
-		&create_expire = wnd_addr_scan &expire_func=scan_summary &redef;
-	global distinct_ports: table[addr] of set[port]
-		&create_expire = wnd_port_scan &expire_func=port_summary &redef;
-	global distinct_low_ports: table[addr] of set[port]
-		&create_expire = wnd_port_scan &expire_func=lowport_summary &redef;
-
-	# Indexed by scanner address, yields a table with scanned hosts
-	# (and ports).
-	global scan_triples: table[addr] of table[addr] of set[port];
+	global distinct_peers: table[addr] of table[port] of set[addr]
+		&create_expire = wnd_addr_scan &redef;
+	global distinct_ports: table[addr] of table[addr] of set[port]
+		&create_expire = wnd_port_scan &redef;
+	global distinct_low_ports: table[addr] of table[addr] of set[port]
+		&create_expire = wnd_port_scan &redef;
 
 	global remove_possible_source:
 		function(s: set[addr], idx: addr): interval;
 	global possible_scan_sources: set[addr]
 		&expire_func=remove_possible_source &read_expire = 15 mins;
 
-	# Indexed by source address, yields user name & password tried.
-	global accounts_tried: table[addr] of set[string, string]
-		&read_expire = 1 days;
-
-	global ignored_scanners: set[addr] &create_expire = 1 day &redef;
-
-	# These tables track whether a threshold has been reached.
-	# More precisely, the counter is the next index of threshold vector.
-	global shut_down_thresh_reached: table[addr] of bool &default=F;
 	global rb_idx: table[addr] of count
 			&default=0 &read_expire = 1 days &redef;
-	global rps_idx: table[addr] of count
-			&default=0 &read_expire = 1 days &redef;
-	global rcps_idx: table[addr] of count
-			&default=0 &read_expire = 1 days &redef;
-	global rops_idx: table[addr] of count
-			&default=0 &read_expire = 1 days &redef;
-	global rcops_idx: table[addr] of count
-			&default=0 &read_expire = 1 days &redef;
-	global rpts_idx: table[addr,addr] of count
-			&default=0 &read_expire = 1 days &redef;
-	global rat_idx: table[addr] of count
-			&default=0 &read_expire = 1 days &redef;
-	global rrat_idx: table[addr] of count
-			&default=0 &read_expire = 1 days &redef;
+	
 }
 
 	event bro_init() &priority=3
@@ -226,24 +116,22 @@ export {
 			{
 			if ( "th_addr_scan" in Config::table_config["scan"] )
 				{
-				report_peer_scan[0] = to_count(Config::table_config["scan"]["th_addr_scan"]);
-				report_outbound_peer_scan[0] = to_count(Config::table_config["scan"]["th_addr_scan"]);
+				th_addr_scan = to_count(Config::table_config["scan"]["th_addr_scan"]);
 				}
 
 			if ( "th_addr_scan_critical" in Config::table_config["scan"] )
 				{
-				report_critical_peer_scan[0] = to_count(Config::table_config["scan"]["th_addr_scan_critical"]);
-				report_critical_outbound_peer_scan[0] = to_count(Config::table_config["scan"]["th_addr_scan_critical"]);
+				th_addr_scan_critical = to_count(Config::table_config["scan"]["th_addr_scan_critical"]);
 				}
 
 			if ( "th_port_scan" in Config::table_config["scan"] )
 				{
-				report_port_scan[0] = to_count(Config::table_config["scan"]["th_port_scan"]);
+				th_port_scan = to_count(Config::table_config["scan"]["th_port_scan"]);
 				}
 
 			if ( "th_low_port_troll" in Config::table_config["scan"] )
 				{
-				priv_scan_trigger = to_count(Config::table_config["scan"]["th_low_port_troll"]);
+				th_low_port_troll = to_count(Config::table_config["scan"]["th_low_port_troll"]);
 				}
 
 			if ( "wnd_addr_scan" in Config::table_config["scan"] )
@@ -262,73 +150,6 @@ export {
 
 global thresh_check: function(v: vector of count, idx: table[addr] of count,
 				orig: addr, n: count): bool;
-global thresh_check_2: function(v: vector of count,
-				idx: table[addr,addr] of count, orig: addr,
-				resp: addr, n: count): bool;
-
-function scan_summary(t: table[addr] of set[addr], orig: addr): interval
-	{
-	local num_distinct_peers = orig in t ? |t[orig]| : 0;
-
-	if ( num_distinct_peers >= scan_summary_trigger )
-		NOTICE([$note=ScanSummary, $src=orig, $n=num_distinct_peers,
-			$identifier=fmt("%s", orig),
-			$msg=fmt("%s scanned a total of %d hosts",
-					orig, num_distinct_peers)]);
-
-	return 0 secs;
-	}
-
-function port_summary(t: table[addr] of set[port], orig: addr): interval
-	{
-	local num_distinct_ports = orig in t ? |t[orig]| : 0;
-
-	if ( num_distinct_ports >= port_summary_trigger )
-		NOTICE([$note=PortScanSummary, $src=orig, $n=num_distinct_ports,
-			$identifier=fmt("%s", orig),
-			$msg=fmt("%s scanned a total of %d ports",
-					orig, num_distinct_ports)]);
-
-	return 0 secs;
-	}
-
-function lowport_summary(t: table[addr] of set[port], orig: addr): interval
-	{
-	local num_distinct_lowports = orig in t ? |t[orig]| : 0;
-
-	if ( num_distinct_lowports >= lowport_summary_trigger )
-		NOTICE([$note=LowPortScanSummary, $src=orig,
-			$n=num_distinct_lowports,
-			$identifier=fmt("%s", orig),
-			$msg=fmt("%s scanned a total of %d low ports",
-					orig, num_distinct_lowports)]);
-
-	return 0 secs;
-	}
-
-function clear_addr(a: addr)
-	{
-	delete distinct_peers[a];
-	delete distinct_ports[a];
-	delete distinct_low_ports[a];
-	delete scan_triples[a];
-	delete possible_scan_sources[a];
-	delete distinct_backscatter_peers[a];
-	delete pre_distinct_peers[a];
-	delete rb_idx[a];
-	delete rps_idx[a];
-	delete rops_idx[a];
-	delete rat_idx[a];
-	delete rrat_idx[a];
-	delete shut_down_thresh_reached[a];
-	delete ignored_scanners[a];
-	}
-
-function ignore_addr(a: addr)
-	{
-	clear_addr(a);
-	add ignored_scanners[a];
-	}
 
 function check_scan(c: connection, established: bool, reverse: bool): bool
 	{
@@ -364,14 +185,11 @@ function check_scan(c: connection, established: bool, reverse: bool): bool
 	if ( ! outbound && [resp, service] in skip_dest_server_ports )
 		return F;
 
-	if ( orig in ignored_scanners)
-		return F;
-
 	if ( ! established &&
 		# not established, service not expressly allowed
 
 		# not known peer set
-		(orig !in distinct_peers || resp !in distinct_peers[orig]) &&
+		(orig !in distinct_peers || resp !in distinct_peers[orig][service]) &&
 
 		# want to consider service for scan detection
 		(analyze_all_services || service in analyze_services) )
@@ -408,112 +226,86 @@ function check_scan(c: connection, established: bool, reverse: bool): bool
 					$msg=fmt("backscatter seen from %s (%d hosts; %s)",
 						orig, |distinct_backscatter_peers[orig]|, rev_service)]);
 				}
-
-			if ( ignore_scanners_threshold > 0 &&
-			     |distinct_backscatter_peers[orig]| >
-					ignore_scanners_threshold )
-				ignore_addr(orig);
 			}
 
 		else
 			{ # done with backscatter check
-			local ignore = F;
-
-			if ( orig !in distinct_peers && addr_scan_trigger > 0 )
+			
+			
+			if ( orig !in distinct_peers )
 				{
-				if ( orig !in pre_distinct_peers )
-					pre_distinct_peers[orig] = set();
-
-				add pre_distinct_peers[orig][resp];
-				if ( |pre_distinct_peers[orig]| < addr_scan_trigger )
-					ignore = T;
+				local t: table[port] of set[addr];
+				local s: set[addr];
+				t[service] = s;
+				distinct_peers[orig] = t;
 				}
 
-			if ( ! ignore )
-				{ # XXXXX
+			if ( service !in distinct_peers[orig] )
+				{
+				local s2: set[addr];
+				distinct_peers[orig][service] = s2;
+				}
 
-				if ( orig !in distinct_peers )
-					distinct_peers[orig] = set() &mergeable;
+			if ( resp !in distinct_peers[orig][service] )
+				add distinct_peers[orig][service][resp];
 
-				if ( resp !in distinct_peers[orig] )
-					add distinct_peers[orig][resp];
+			local n = |distinct_peers[orig][service]|;
 
-				local n = |distinct_peers[orig]|;
+			local do_chk = F;
 
-				# Check for threshold if not outbound.
-				if ( ! shut_down_thresh_reached[orig] &&
-				     n >= shut_down_thresh &&
-				     ! outbound && orig !in Site::neighbor_nets )
-					{
-					shut_down_thresh_reached[orig] = T;
-					local msg = fmt("shutdown threshold reached for %s", orig);
-					NOTICE([$note=ShutdownThresh, $src=orig,
-						$identifier=fmt("%s", orig),
-						$p=service, $msg=msg]);
-					}
+			if ( service in BlacklistMgr::blacklist_bad_ports )
+				do_chk = (n > th_addr_scan_critical);
+			else
+				do_chk = (n > th_addr_scan);
 
+			## Outbound scanning
+			if ( (outbound) && do_chk )
+				{
+				local submsg = "";
+				if ( service in BlacklistMgr::blacklist_bad_ports )
+					submsg = "Critical";
 				else
-					{
-					local address_scan = F;
+					submsg = "Medium";
+			
+				delete distinct_peers[orig][service];
 
-					if ( (outbound) &&
-					     # inside host scanning out?
-					     (service in BlacklistMgr::blacklist_bad_ports?
-					     thresh_check(report_critical_outbound_peer_scan, rcops_idx, orig, n):
-					     thresh_check(report_outbound_peer_scan, rops_idx, orig, n)) )
-						{
-						address_scan = T;
+				NOTICE([$note=AddressScanOutbound,
+					$src=orig, $p=service,
+					$n=n,
+					$identifier=fmt("%s-%d", orig, n),
+					$msg=fmt("%s has scanned %d hosts (%s)",
+					orig, n, service),
+					$sub=submsg]);
+				}	
+			## Inbound scanning	
+			if ( (!outbound) && do_chk)
+				{
+				local subms = "";
+				if ( service in BlacklistMgr::blacklist_bad_ports )
+					subms = "Critical";
+				else
+					subms = "Medium";
 
-						local submsg = "";
-						if ( service in BlacklistMgr::blacklist_bad_ports )
-							submsg = "Critical";
-						else
-							submsg = "Medium";
-						NOTICE([$note=AddressScanOutbound,
-							$src=orig, $p=service,
-							$n=n,
-							$identifier=fmt("%s-%d", orig, n),
-							$msg=fmt("%s has scanned %d hosts (%s)",
-								orig, n, service),
-							$sub=submsg]);
-						}	
-				
-					if ( (!outbound) &&
-					     (service in BlacklistMgr::blacklist_bad_ports?
-					     thresh_check(report_critical_peer_scan, rcops_idx, orig, n):
-					     thresh_check(report_peer_scan, rops_idx, orig, n)) )
-						{
-						address_scan = T;
-				
-						local subms = "";
-						if ( service in BlacklistMgr::blacklist_bad_ports )
-							subms = "Critical";
-						else
-							subms = "Medium";
+				# In case of inbound scan, we need the destination addrs, i.e., the victims in our
+				# network. We'll provide that info as a string delimited by ':', appended to the 
+				# original msg
+				local victims = ":";
+				for ( a in distinct_peers[orig][service] )
+					victims = victims + fmt("%s",a) + " ";
 
-						# In case of inbound scan, we need the destination addrs, i.e., the victims in our
-						# network. We'll provide that info as a string delimited by ':', appended to the 
-						# original msg
-						local victims = ":";
-						for ( a in distinct_peers[orig] )
-							victims = victims + fmt("%s",a) + " ";
-						NOTICE([$note=AddressScanInbound,
-							$src=orig, $p=service,
-							$n=n,
-							$identifier=fmt("%s-%d", orig, n),
-							$msg=fmt("%s has scanned %d hosts (%s)",
-								orig, n, service) + victims,
-							$sub=subms ]);
-						}
+				delete distinct_peers[orig][service];
 
-					if ( address_scan &&
-					     ignore_scanners_threshold > 0 &&
-					     n > ignore_scanners_threshold )
-						ignore_addr(orig);
-					}
+				NOTICE([$note=AddressScanInbound,
+					$src=orig, $p=service,
+					$n=n,
+					$identifier=fmt("%s-%d", orig, n),
+					$msg=fmt("%s has scanned %d hosts (%s)",
+						orig, n, service) + victims,
+					$sub=subms ]);
 				}
-			} # XXXX
+			}
 		}
+
 
 	if ( established )
 		# Don't consider established connections for port scanning,
@@ -521,109 +313,68 @@ function check_scan(c: connection, established: bool, reverse: bool): bool
 		# legitimately gobble their way through the port space.
 		return F;
 
-	# Coarse search for port-scanning candidates: those that have made
-	# connections (attempts) to possible_port_scan_thresh or more
-	# distinct ports.
-	if ( orig !in distinct_ports || service !in distinct_ports[orig] )
+	## Detection of medium severity port scanning
+	if ( service > 1024/tcp &&
+	     ( orig !in distinct_ports || 
+	       resp !in distinct_ports[orig] || 
+	       service !in distinct_ports[orig][resp] ))
 		{
 		if ( orig !in distinct_ports )
-			distinct_ports[orig] = set() &mergeable;
-
-		if ( service !in distinct_ports[orig] )
-			add distinct_ports[orig][service];
-
-		if ( |distinct_ports[orig]| >= possible_port_scan_thresh &&
-			orig !in scan_triples )
 			{
-			scan_triples[orig] = table() &mergeable;
-			add possible_scan_sources[orig];
+			local t2: table[addr] of set[port];
+			local s3: set[port];
+			t2[orig] = s3;
+			distinct_ports[orig] = set();
+			}
+
+		if ( resp !in distinct_ports[orig] )
+			{
+			local s4: set[port];
+			distinct_ports[orig][resp] = s4;
+			}
+
+		if ( service !in distinct_ports[orig][resp] )
+			add distinct_ports[orig][resp][service];
+
+		if ( |distinct_ports[orig][resp]| > th_port_scan)
+			{
+			local m = |distinct_ports[orig][resp]|;
+			NOTICE([$note=PortScan, $n=m, $src=orig, $dst=resp,
+			$p=service,
+			$identifier=fmt("%s-%d", orig, n),
+			$msg=fmt("%s has scanned %d ports of %s",
+				orig, m, resp), 
+				$sub = "Medium"]);
 			}
 		}
 
 	# Check for low ports.
-	if ( activate_priv_port_check && ! outbound && service < 1024/tcp &&
+	if ( service < 1024/tcp &&
 	     service !in troll_skip_service )
 		{
 		if ( orig !in distinct_low_ports ||
-		     service !in distinct_low_ports[orig] )
+		     resp !in distinct_low_ports[orig] ||
+		     service !in distinct_low_ports[orig][resp] )
 			{
 			if ( orig !in distinct_low_ports )
-				distinct_low_ports[orig] = set() &mergeable;
+				distinct_low_ports[orig] = table();
 
-			add distinct_low_ports[orig][service];
+			if ( resp !in distinct_low_ports[orig] )
+				distinct_low_ports[orig][resp] = set();
 
-			if ( |distinct_low_ports[orig]| == priv_scan_trigger &&
-			     orig !in Site::neighbor_nets )
+			add distinct_low_ports[orig][resp][service];
+
+			if ( |distinct_low_ports[orig][resp]| > th_low_port_troll )
 				{
 				local svrc_msg = fmt("low port trolling of %s by %s (%s)", resp, orig, service);
 				NOTICE([$note=LowPortTrolling, $src=orig, $dst=resp,
 					$identifier=fmt("%s", orig),
 					$p=service, $msg=svrc_msg, $sub="Critical"]);
 				}
-
-			if ( ignore_scanners_threshold > 0 &&
-			     |distinct_low_ports[orig]| >
-					ignore_scanners_threshold )
-				ignore_addr(orig);
-			}
-		}
-
-	# For sources that have been identified as possible scan sources,
-	# keep track of per-host scanning.
-	if ( orig in possible_scan_sources )
-		{
-		if ( orig !in scan_triples )
-			scan_triples[orig] = table() &mergeable;
-
-		if ( resp !in scan_triples[orig] )
-			scan_triples[orig][resp] = set() &mergeable;
-
-		if ( service !in scan_triples[orig][resp] )
-			{
-			add scan_triples[orig][resp][service];
-
-			if ( thresh_check_2(report_port_scan, rpts_idx,
-					    orig, resp,
-					    |scan_triples[orig][resp]|) )
-				{
-				local m = |scan_triples[orig][resp]|;
-				NOTICE([$note=PortScan, $n=m, $src=orig, $dst=resp,
-					$p=service,
-					$identifier=fmt("%s-%d", orig, n),
-					$msg=fmt("%s has scanned %d ports of %s",
-					orig, m, resp), 
-					$sub = "Medium"]);
-				}
 			}
 		}
 
 	return T;
-	}
-
-
-# Hook into the catch&release dropping. When an address gets restored, we reset
-# the source to allow dropping it again.
-event Drop::address_restored(a: addr)
-	{
-	clear_addr(a);
-	}
-
-event Drop::address_cleared(a: addr)
-	{
-	clear_addr(a);
-	}
-
-# When removing a possible scan source, we automatically delete its scanned
-# hosts and ports.  But we do not want the deletion propagated, because every
-# peer calls the expire_function on its own (and thus applies the delete
-# operation on its own table).
-function remove_possible_source(s: set[addr], idx: addr): interval
-	{
-	suspend_state_updates();
-	delete scan_triples[idx];
-	resume_state_updates();
-
-	return 0 secs;
 	}
 
 # To recognize whether a certain threshhold vector (e.g. report_peer_scans)
@@ -633,34 +384,9 @@ function remove_possible_source(s: set[addr], idx: addr): interval
 function thresh_check(v: vector of count, idx: table[addr] of count,
 			orig: addr, n: count): bool
 	{
-	if ( ignore_scanners_threshold > 0 && n > ignore_scanners_threshold )
-		{
-		ignore_addr(orig);
-		return F;
-		}
-
 	if ( idx[orig] <= |v| && n >= v[idx[orig]] )
 		{
 		++idx[orig];
-		return T;
-		}
-	else
-		return F;
-	}
-
-# Same as above, except the index has a different type signature.
-function thresh_check_2(v: vector of count, idx: table[addr, addr] of count,
-			orig: addr, resp: addr, n: count): bool
-	{
-	if ( ignore_scanners_threshold > 0 && n > ignore_scanners_threshold )
-		{
-		ignore_addr(orig);
-		return F;
-		}
-
-	if ( idx[orig,resp] <= |v| && n >= v[idx[orig, resp]] )
-		{
-		++idx[orig,resp];
 		return T;
 		}
 	else
@@ -710,15 +436,3 @@ event connection_pending(c: connection)
 		Scan::check_scan(c, F, F);
 	}
 
-# Report the remaining entries in the tables.
-event bro_done()
-	{
-	for ( orig in distinct_peers )
-		scan_summary(distinct_peers, orig);
-
-	for ( orig in distinct_ports )
-		port_summary(distinct_ports, orig);
-
-	for ( orig in distinct_low_ports )
-		lowport_summary(distinct_low_ports, orig);
-	}

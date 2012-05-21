@@ -57,9 +57,9 @@ event bro_init()
 				{
 				smtp_threshold = to_count(Config::table_config["spam"]["th_smtp"]);
 				}
-			if ( "th_mx" in Config::table_config["spam"] )
+			if ( "th_mx_queries" in Config::table_config["spam"] )
 				{
-				mx_threshold = to_count(Config::table_config["spam"]["th_mx"]);
+				mx_threshold = to_count(Config::table_config["spam"]["th_mx_queries"]);
 				}
 			if ( "wnd_spam" in Config::table_config["spam"] )
 				{
