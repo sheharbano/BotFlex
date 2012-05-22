@@ -1,2 +1,0 @@
-Grabs list of ip addresses generated in 1, and run roc_data.python
-on it turn by turn, to get detection rate and other useful info 

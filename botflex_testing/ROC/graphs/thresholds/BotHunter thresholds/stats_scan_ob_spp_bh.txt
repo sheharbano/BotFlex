@@ -1,8 +1,0 @@
-Total hosts: 2536
-Number of known good/benign hosts: 1799
-Number of known bad/malicious hosts: 737
-
-TP: 0	FP: 1	TN: 1799	FN: 737
-
-Detection/TP rate: 0.000000
-Miss/FP rate: 0.055586
