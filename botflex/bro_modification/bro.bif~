@@ -19,5 +19,11 @@ function read_file%(path: string%): string_set
 	return tv;
 	%}
 
-
+function to_subnet%(str_subnet: string%): subnet
+	%{
+	char* s = str_subnet->AsString()->Render();
+	Val* ret = new SubNetVal(s);
+	delete [] s;
+	return ret;
+	%}
 
