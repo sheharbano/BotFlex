@@ -1,35 +1,51 @@
-config local_net 203.82.48.0/20,203.99.48.0/20,58.65.160.0/19,58.65.128.0/19,124.109.32.0/19,115.186.128.0/18
-
-scan th_addr_scan 70
-scan th_addr_scan_critical 30
-scan th_port_scan 40
-scan th_low_port_troll 40
-scan wnd_addr_scan 15mins 
-scan wnd_port_scan 15mins
-scan evaluation_mode OR
-
-exploit th_ssh_login 15
-exploit wnd_breakin 15mins
-exploit wnd_exploit 15mins
-exploit evaluation_mode OR
-exploit evaluation_breakin_mode OR
-
-egg th_disguised_exe 4
-egg wnd_egg 15mins
-egg evaluation_mode OR
-
-cnc th_dns_failure 40
-cnc evaluation_mode OR
-cnc wnd_cnc 5mins
-
-sqli th_sqli_attempt 20
-sqli wnd_sqli 10mins
-sqli evaluation_mode OR
-
-spam th_mx_queries 30
-spam th_smtp 40
-spam wnd_spam 5mins
-spam evaluation_mode OR
-
-correlation wnd_correlation 12hrs
-correlation wnd_bot 1day
+#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	reporter
+#fields	parameter	value
+#types	string	string
+local_net	20.0.0.0/20
+th_addr_scan	50
+weight_addr_scan	0.8
+th_addr_scan_critical	777
+weight_addr_scan_critical	1.0
+th_port_scan	20
+weight_port_scan	0.25
+th_low_port_troll	10
+weight_low_port_troll	0.5
+wnd_addr_scan	15mins 
+wnd_port_scan	15mins
+scan_evaluation_mode	OR
+th_ssh_login	5
+weight_breakin	1.0
+wnd_breakin	15mins
+wnd_exploit	15mins
+weight_exploit_blacklist_match	0.8
+exploit_evaluation_mode	OR
+evaluation_breakin_mode	OR
+th_disguised_exe	1
+weight_disguised_exe	0.8
+weight_egg_signature_match	1.0
+wnd_egg	60mins
+evaluation_mode	OR
+th_dns_failure	30
+weight_dns_failure	0.8
+evaluation_mode	OR
+wnd_cnc	5mins
+weight_cnc_blacklist_match	1.0
+weight_cnc_blacklist_dns_match	0.5
+weight_cnc_signature_match	0.8
+weight_rbn_blacklist_match	0.5
+th_sqli_attempt	10
+wnd_sqli	10mins
+weight_sqli	0.5
+sqli_evaluation_mode	OR
+th_mx_queries	30
+th_smtp	35
+weight_spam_failed_mx	1.0
+weight_spam_failed_smtp	0.8
+wnd_spam	5mins
+spam_evaluation_mode	OR
+wnd_correlation	12hrs
+wnd_bot	1day

@@ -13,35 +13,42 @@
     
 module Config;
 
+type Idx: record {
+        parameter: string;
+};
+
+type Val: record {
+        value: string;
+};
+
 export {
-	global config_filename = "/usr/local/bro/share/bro/site/botflex/config.txt" &redef;
-	global table_config: table[string] of table[string] of string;
+	global table_config: table[string] of Val;
 }
 
+global config_filename = "/usr/local/bro/share/bro/site/botflex/config.txt";
 
-event bro_init() &priority=20
+event bro_init() &priority=25
 	{
-	local lines = read_file( config_filename );
-
-	for ( rec in lines )
-		{
-		local words = split( rec, /[[:blank:]]*/ );
-		# Now words[1] = <scan|exploit|egg-download|cnc|attack>, 
-		# words[2] = parameter, words[3] = value
-		if ( words[1] !in table_config )
-			{
-			local tb: table[string] of string;
-			table_config[words[1]] = tb;
-			}
-		table_config[words[1]][words[2]] = words[3];
-		}
-
-	## Setting local subnets
-	local str_our_nets = table_config["config"]["local_net"];
-	local our_nets = split( str_our_nets, /[,]/ );
-	
-	for ( nt in our_nets )
-		add Site::local_nets[ to_subnet(our_nets[nt]) ];
+	Input::add_table([$source=config_filename, $name="config_stream", $idx=Idx, 
+			  $val=Val, $destination=table_config, $mode=Input::REREAD]);
+	Input::remove("config_stream");
 	
 	}
+
+event Input::update_finished(name: string, source: string) 
+	{
+	# Setting local subnets
+	if ( "local_net" in table_config )
+		{  
+		local str_our_nets = table_config["local_net"]$value;
+		local our_nets = split( str_our_nets, /[,]/ );
+	
+		for ( nt in our_nets )
+			add Site::local_nets[ to_subnet(our_nets[nt]) ];
+
+		}
+	else
+		print "Could not find local subnets";
+	}
+
 

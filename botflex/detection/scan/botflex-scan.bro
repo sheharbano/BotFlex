@@ -49,19 +49,35 @@ export {
 
 	## The event that sufficient evidence has been gathered to declare the inbound 
 	## scan or attack (in case of outbound scan) phase of botnet infection lifecycle
-	global scan_ib: event( ts: time, src_ip: addr, victim: addr, target_port: port, 
-			       msg: string, tag: string, severity: string );
-	global scan_ob: event( ts: time, src_ip: addr, target_port: port, 
-			       msg: string, tag: string, severity: string );
-	global say_hello: event(str: string);
+	global scan_ib: event( victim: addr, weight: double );
+	global scan_ob: event( src_ip: addr, weight: double );
 	global log_scan: event( ts: time, src_ip: addr, scan_type: string, num_ports_scanned: count,
 	       num_addrs_scanned: count, target_port: port, msg: string, victims: string, outbound: bool );
+
+	## Weights of different events
+	const weight_addr_scan = 0.8 &redef;
+	const weight_addr_scan_critical = 1.0 &redef;
+	const weight_port_scan = 0.25 &redef;
+	# Threshold for scanning privileged ports.
+	const weight_low_port_troll = 0.5 &redef;
 }
 
 event bro_init() &priority=5
 	{
 	Log::create_stream(BotflexScan::LOG_IB, [$columns=Info_ib, $ev=log_scan_ib]);
 	Log::create_stream(BotflexScan::LOG_OB, [$columns=Info_ob, $ev=log_scan_ob]);
+
+	if ( "weight_addr_scan" in Config::table_config )
+		weight_addr_scan = to_double(Config::table_config["weight_addr_scan"]$value);
+
+	if ( "weight_addr_scan_critical" in Config::table_config )
+		weight_addr_scan_critical = to_double(Config::table_config["weight_addr_scan_critical"]$value);
+
+	if ( "weight_port_scan" in Config::table_config )
+		weight_port_scan = to_double(Config::table_config["weight_port_scan"]$value);
+				
+	if ( "weight_low_port_troll" in Config::table_config )
+		weight_low_port_troll = to_double(Config::table_config["weight_low_port_troll"]$value);
 	
 	}
 global scan_ib_info: BotflexScan::Info_ib;
@@ -79,13 +95,13 @@ redef Notice::policy += {
 			
 			if ( outbound )
 				{
-				event BotflexScan::scan_ob( t, n$src, n$p, msg1, "Port Scan", n$sub );
+				event BotflexScan::scan_ob( n$src, weight_port_scan );
 				event BotflexScan::log_scan(t, n$src, "Port Scan", n$n, 0, n$p, 
 						              msg1, "", T );
 				}
 			else
 				{
-				event BotflexScan::scan_ib(t, n$src, n$dst, n$p, msg1, "Port Scan", n$sub );
+				event BotflexScan::scan_ib(n$src, weight_port_scan );
 				event BotflexScan::log_scan(t, n$src, "Port Scan", n$n, 0, n$p, 
 						              msg1, fmt("%s", n$dst), F );
 				}
@@ -93,8 +109,15 @@ redef Notice::policy += {
 
                else if ( n$note == Scan::AddressScanOutbound )
                        {
+			local severity_ob = n$sub;
+
+			if ( severity_ob == "Medium" )
+				event BotflexScan::scan_ob( n$src, weight_addr_scan );
+			else if ( severity_ob == "Critical" )
+				event BotflexScan::scan_ob( n$src, weight_addr_scan_critical );
+
 			local msg2 = fmt("%s: %s: Severity: %s",strftime(str_time, t),n$msg,n$sub);
-			event BotflexScan::scan_ob( t, n$src, n$p, msg2, "Address Scan", n$sub  ); 
+			 
 			event BotflexScan::log_scan(t, n$src, "Address Scan", 0, n$n, n$p, 
 						      msg2, "", T );	
                        }
@@ -107,9 +130,14 @@ redef Notice::policy += {
 
 			for ( v in str_victims )
 				{
-				local msg3 = fmt("%s: %s was scanned by %s (%s): Severity: %s",strftime(str_time, t),v,n$src,n$p,n$sub);
-				event BotflexScan::scan_ib(t, n$src, to_addr(str_victims[v]), n$p, msg3, "Address Scan", n$sub );
+				local severity_ib = n$sub;
+
+				if ( severity_ib == "Medium" )
+					event BotflexScan::scan_ib( n$src, weight_addr_scan );
+				else if ( severity_ib == "Critical" )
+					event BotflexScan::scan_ib( n$src, weight_addr_scan_critical );
 				}
+
 			event BotflexScan::log_scan(t, n$src, "Address Scan", n$n, 0, n$p, 
 						      fmt("%s: %s",msg_arr[1], n$sub), msg_arr[2], F );
 
@@ -119,16 +147,16 @@ redef Notice::policy += {
                        {
 			local msg4 = fmt("%s: %s: Severity: %s",strftime(str_time, t),n$msg,n$sub);
 			local outbound2 = Site::is_local_addr(n$src);
-			print outbound2;
+
 			if ( outbound2 )
 				{
-				event BotflexScan::scan_ob( t, n$src, n$p, msg4, "Port Scan", n$sub );
+				event BotflexScan::scan_ob( n$src, weight_low_port_troll );
 				event BotflexScan::log_scan(t, n$src, "Port Scan", n$n, 0, n$p, 
 						      msg4, "", T );
 				}
 			else
 				{
-				event BotflexScan::scan_ib( t, n$src, n$dst, n$p, msg4, "Port Scan", n$sub );
+				event BotflexScan::scan_ib( n$src, weight_low_port_troll );
 				event BotflexScan::log_scan(t, n$src, "Port Scan", n$n, 0, n$p, 
 						      msg4, fmt("%s", n$dst), F );
 				}

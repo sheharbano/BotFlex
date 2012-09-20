@@ -33,7 +33,7 @@ export {
 	type sqli_tributary: enum { Signature_match, };
 
 	## The event that sqli.bro reports sql injection attacks
-	global sqli: event( ts: time, src_ip: addr, uris: set[string], msg: string );
+	global sqli: event( src_ip: addr, weight: double );
 	
 	## Event that can be handled to access the spam
 	## record as it is sent on to the logging framework.
@@ -41,6 +41,8 @@ export {
 
 	## Thresholds for different contributors to the major event bot_attack
 	const sqli_attempt_threshold = 1 &redef;
+		
+	const weight_sqli = 0.5 &redef;
 
 	## Regular expression is used to match URI based SQL injections.
 	const match_sql_injection_uri = 
@@ -59,17 +61,22 @@ event bro_init() &priority=5
 	Log::create_stream(Sqli::LOG, [$columns=Info, $ev=log_sqli]);
 	if ( "sqli" in Config::table_config  )
 			{
-			if ( "th_sqli_attempt" in Config::table_config["sqli"] )
+			if ( "th_sqli_attempt" in Config::table_config )
 				{
-				sqli_attempt_threshold = to_count(Config::table_config["sqli"]["th_sqli_attempt"]);
+				sqli_attempt_threshold = to_count(Config::table_config["th_sqli_attempt"]$value);
 				}
-			if ( "wnd_sqli" in Config::table_config["sqli"] )
+			if ( "wnd_sqli" in Config::table_config )
 				{
-				wnd_sqli = string_to_interval(Config::table_config["sqli"]["wnd_sqli"]);
+				wnd_sqli = string_to_interval(Config::table_config["wnd_sqli"]$value);
 				}
-			if ( "evaluation_mode" in Config::table_config["sqli"] )
+			if ( "weight_sqli" in Config::table_config )
 				{
-				sqli_evaluation_mode = string_to_evaluationmode(Config::table_config["sqli"]["evaluation_mode"]);
+				weight_sqli = to_double(Config::table_config["weight_sqli"]$value);
+				}
+			if ( "evaluation_mode" in Config::table_config )
+				{
+				sqli_evaluation_mode = string_to_evaluationmode(Config::table_config["evaluation_mode"]$value
+);
 				}
 			}
 
@@ -141,10 +148,15 @@ function evaluate( src_ip: addr, t: table[addr] of SqliRecord ): bool
 	if( do_report )
 		{
 		local msg = "";
-		if ( t[src_ip]$tb_tributary[ Signature_match ] )
-			msg = msg + "HTTP request matched signature for Sql injection attack";
+		local weight = 0.0;
 
-		event Sqli::sqli( network_time(), src_ip, t[src_ip]$sqli_uri, msg );
+		if ( t[src_ip]$tb_tributary[ Signature_match ] )
+			{
+			msg = msg + "HTTP request matched signature for Sql injection attack";
+			weight = weight_sqli;
+			}
+
+		event Sqli::sqli( src_ip, weight );
 
 		## Log spam-related entries
 		sqli_info$ts = network_time();
@@ -163,7 +175,7 @@ function evaluate( src_ip: addr, t: table[addr] of SqliRecord ): bool
 function sqli_record_expired(t: table[addr] of SqliRecord, idx: any): interval
 	{
 	evaluate(idx, t);
-	return 0secs;
+	return wnd_sqli;
 	}
 
 function get_sqli_record(): SqliRecord
@@ -173,6 +185,9 @@ function get_sqli_record(): SqliRecord
 	local set_sqli_uri: set[string]; 
 	rec$sqli_uri = set_sqli_uri;
 
+	local t: table[ sqli_tributary ] of bool &default=F;
+	rec$tb_tributary = t;
+
 	return rec;
 	}
 
@@ -180,7 +195,7 @@ function get_sqli_record(): SqliRecord
 ## The global state table that maintains various information pertaining to the
 ## major event sql injection attack, and is analyzed when a decision has to be 
 ## made whether or not to declare the major event sqli.
-global table_sqli: table[addr] of SqliRecord &create_expire=wnd_sqli &expire_func=sqli_record_expired;	
+global table_sqli: table[addr] of SqliRecord &create_expire=0sec &expire_func=sqli_record_expired;	
 
 event http_request(c: connection, method: string, original_URI: string,
                    unescaped_URI: string, version: string)
@@ -209,6 +224,7 @@ event http_request(c: connection, method: string, original_URI: string,
 				if (done)
 					{
 					delete table_sqli[src_ip]$tb_tributary[ Signature_match ];
+					## FIXME : Empty the table?
 					table_sqli[src_ip]$n_sqli_attempts=0;
 					}		
 				}

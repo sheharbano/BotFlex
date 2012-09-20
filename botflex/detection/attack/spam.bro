@@ -29,13 +29,13 @@ export {
 	type spam_tributary: enum { SMTP_threshold_crossed, MX_query_threshold_crossed };
 
 	## Expire interval for the global table concerned with maintaining cnc info
-	const wnd_spam = 2mins &redef;
+	const wnd_spam = 5mins &redef;
 
 	## The evaluation mode (one of the modes defined in enum evaluation_mode in utils/types)
 	const spam_evaluation_mode = OR;
 
 	## The event that spam.bro reports spam
-	global spam: event( ts: time, src_ip: addr, msg: string );
+	global spam: event( src_ip: addr, weight: double );
 
 	## Event that can be handled to access the spam
 	## record as it is sent on to the logging framework.
@@ -44,6 +44,9 @@ export {
 	## Thresholds for different contributors to the major event bot_attack
 	const mx_threshold = 1 &redef;
 	const smtp_threshold = 1 &redef;
+
+	const weight_spam_failed_mx = 1.0 &redef;
+	const weight_spam_failed_smtp = 0.8 &redef;
        }
 
 global spam_info:Spam::Info;
@@ -53,21 +56,29 @@ event bro_init()
 	Log::create_stream(Spam::LOG, [$columns=Info, $ev=log_spam]);
 	if ( "spam" in Config::table_config  )
 			{
-			if ( "th_smtp" in Config::table_config["spam"] )
+			if ( "th_smtp" in Config::table_config )
 				{
-				smtp_threshold = to_count(Config::table_config["spam"]["th_smtp"]);
+				smtp_threshold = to_count(Config::table_config["th_smtp"]$value);
 				}
-			if ( "th_mx_queries" in Config::table_config["spam"] )
+			if ( "th_mx_queries" in Config::table_config )
 				{
-				mx_threshold = to_count(Config::table_config["spam"]["th_mx_queries"]);
+				mx_threshold = to_count(Config::table_config["th_mx_queries"]$value);
 				}
-			if ( "wnd_spam" in Config::table_config["spam"] )
+			if ( "wnd_spam" in Config::table_config )
 				{
-				wnd_spam = string_to_interval(Config::table_config["spam"]["wnd_spam"]);
+				wnd_spam = string_to_interval(Config::table_config["wnd_spam"]$value);
 				}
-			if ( "evaluation_mode" in Config::table_config["spam"] )
+			if ( "weight_spam_failed_mx" in Config::table_config )
 				{
-				spam_evaluation_mode = string_to_evaluationmode(Config::table_config["spam"]["evaluation_mode"]);
+				weight_spam_failed_mx = to_double(Config::table_config["weight_spam_failed_mx"]$value);
+				}
+			if ( "weight_spam_failed_smtp" in Config::table_config )
+				{
+				weight_spam_failed_smtp = to_double(Config::table_config["weight_spam_failed_smtp"]$value);
+				}
+			if ( "evaluation_mode" in Config::table_config )
+				{
+				spam_evaluation_mode = string_to_evaluationmode(Config::table_config["evaluation_mode"]$value);
 				}
 			}
 	
@@ -142,12 +153,20 @@ function evaluate( src_ip: addr, t: table[addr] of SpamRecord  ): bool
 	if( do_report )
 		{
 		local msg = "";
-		if ( t[src_ip]$tb_tributary[ SMTP_threshold_crossed ] )
-			msg = msg + "Large number of SMTP connections initiated;";
-		if ( t[src_ip]$tb_tributary[ MX_query_threshold_crossed ] )
-			msg = msg + "Large number of MX queries made;";
+		local weight = 0.0;
 
-		event Spam::spam( network_time(), src_ip, msg );
+		if ( t[src_ip]$tb_tributary[ SMTP_threshold_crossed ] )
+			{
+			msg = msg + "Large number of SMTP connections initiated;";
+			weight = weight_spam_failed_smtp;
+			}
+		if ( t[src_ip]$tb_tributary[ MX_query_threshold_crossed ] )
+			{
+			msg = msg + "Large number of MX queries made;";
+			weight = weight_spam_failed_mx;
+			}
+
+		event Spam::spam( src_ip, weight );
 
 		## Log spam-related entries
 		spam_info$ts = network_time();
@@ -168,13 +187,13 @@ function evaluate( src_ip: addr, t: table[addr] of SpamRecord  ): bool
 function spam_record_expired(t: table[addr] of SpamRecord, idx: any): interval
 	{
 	evaluate(idx, t);
-	return 0secs;
+	return wnd_spam;
 	}
 
 # The global state table that maintains various information pertaining to the
 ## major event bot_attack, and is analyzed when a decision has to be made whether
 ## or not to declare the major event bot_attack.
-global table_spam: table[addr] of SpamRecord &create_expire=wnd_spam &expire_func=spam_record_expired;	
+global table_spam: table[addr] of SpamRecord &create_expire=0sec &expire_func=spam_record_expired;	
 
 
 function get_spam_record(): SpamRecord
@@ -182,6 +201,9 @@ function get_spam_record(): SpamRecord
 	local rec: SpamRecord;
 	local set_smtp_uniq: set[conn_id]; 
 	rec$uniq_smtp = set_smtp_uniq;
+
+	local t: table[ spam_tributary ] of bool &default=F;
+	rec$tb_tributary = t;
 
 	return rec;
 	}

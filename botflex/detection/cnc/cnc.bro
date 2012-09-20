@@ -28,7 +28,8 @@ export {
 	conn: Info &optional;};
 
 	## The contributory factors (or tributaries) to major event cnc
-	type cnc_tributary: enum { Dns_failure, Blacklist_cnc_match, Blacklist_rbn_match, Blacklist_cnc_dns_match };
+	type cnc_tributary: enum { Dns_failure, Blacklist_cnc_match, Blacklist_rbn_match, 
+				   Blacklist_cnc_dns_match, Conficker_match, Bobax_match };
 
 	## Expire interval for the global table concerned with maintaining cnc info
 	const wnd_cnc = 5mins &redef;
@@ -42,14 +43,32 @@ export {
 	const cnc_dns_blacklist_match_threshold = 0 &redef;
 	const rbn_blacklist_match_threshold = 0 &redef;
 
+	const weight_dns_failure = 0.5 &redef;
+	const weight_cnc_blacklist_match = 1.0 &redef;
+	const weight_cnc_blacklist_dns_match = 0.8 &redef;
+	const weight_cnc_signature_match = 0.8 &redef;	
+	const weight_rbn_blacklist_match = 0.5 &redef;
+
 	## Event that can be handled to access the cnc
 	## record as it is sent on to the logging framework.
 	global log_cnc: event(rec: Info);
 
 	## The event that sufficient evidence has been gathered to declare the
 	## CnC phase of botnet infection lifecycle
-	global cnc: event( ts: time, src_ip: addr, msg: string, ip_cnc: string, url_cnc: string,
-			   url_cnc_dns: string, ip_rbn: string );
+	global cnc: event( src_ip: addr, weight: double );
+
+	global url_blacklist_match: event( our_ip: addr, other_ip: addr, bad_url: string, bl_source: string, reason: string );
+	global ip_blacklist_match: event( our_ip: addr, other_ip: addr, bl_source: string, reason: string );
+
+	## The event that a host was seen to make outbound
+	## 447/tcp or 447/udp connections which point to
+	## Bobax/Kraken/Oderoor infection
+	global bobax_match: event( our_ip: addr, other_ip: addr, bad_port: port );
+
+	## The event that a host was seen to making HTTP request
+	## that had a URI that matched Conficker signature i.e.
+	## the URI ends with search?q=n
+	global conficker_match: event( our_ip: addr, other_ip: addr, bad_url: string );
 }
 
 ## Type of the value of the global table table_cnc
@@ -72,30 +91,42 @@ type CncRecord: record {
 ## of certain botnets such as Torpig and Conficker 
 global dns_failure: event( src_ip: addr );
 
-## The event that a host was found to communicate with CnC server ip
-## or url from our blacklists
-global cnc_url_match: event( src_ip: addr, cnc_url: string );
-
-## The event that a host was found to communicate with CnC server ip
-## from our blacklists
-global cnc_ip_match: event( src_ip: addr, cnc_ip: addr );
-
 event bro_init()
 	{
 	Log::create_stream(CNC::LOG, [$columns=Info, $ev=log_cnc]);
 	if ( "cnc" in Config::table_config  )
 			{
-			if ( "th_dns_failure" in Config::table_config["cnc"] )
+			if ( "th_dns_failure" in Config::table_config )
 				{
-				dns_failure_threshold = to_count(Config::table_config["cnc"]["th_dns_failure"]);
+				dns_failure_threshold = to_count(Config::table_config["th_dns_failure"]$value);
 				}
-			if ( "wnd_cnc" in Config::table_config["cnc"] )
+			if ( "wnd_cnc" in Config::table_config )
 				{
-				wnd_cnc = string_to_interval(Config::table_config["cnc"]["wnd_cnc"]);
+				wnd_cnc = string_to_interval(Config::table_config["wnd_cnc"]$value);
 				}
-			if ( "evaluation_mode" in Config::table_config["cnc"] )
+			if ( "weight_dns_failure" in Config::table_config )
 				{
-				cnc_evaluation_mode = string_to_evaluationmode(Config::table_config["cnc"]["evaluation_mode"]);
+				weight_dns_failure = to_double(Config::table_config["weight_dns_failure"]$value);
+				}
+			if ( "weight_cnc_blacklist_match" in Config::table_config )
+				{
+				weight_cnc_blacklist_match = to_double(Config::table_config["weight_cnc_blacklist_match"]$value);
+				}
+			if ( "weight_cnc_blacklist_dns_match" in Config::table_config )
+				{
+				weight_cnc_blacklist_dns_match = to_double(Config::table_config["weight_cnc_blacklist_dns_match"]$value);
+				}
+			if ( "weight_cnc_signature_match" in Config::table_config )
+				{
+				weight_cnc_signature_match = to_double(Config::table_config["weight_cnc_signature_match"]$value);
+				}
+			if ( "weight_rbn_blacklist_match" in Config::table_config )
+				{
+				weight_rbn_blacklist_match = to_double(Config::table_config["weight_rbn_blacklist_match"]$value);
+				}
+			if ( "evaluation_mode" in Config::table_config )
+				{
+				cnc_evaluation_mode = string_to_evaluationmode(Config::table_config["evaluation_mode"]$value);
 				}
 			}
 	}
@@ -159,20 +190,47 @@ function evaluate( src_ip: addr, t: table[addr] of CncRecord ): bool
 	if( do_report )
 		{
 		local msg = "";
-		if( t[src_ip]$tb_tributary[ Dns_failure ] ) 
+		local weight = 0.0;
+
+		## FIXME: In future, we might want to accumulate these different weights,
+		## especially, when evaluation mode is not OR 
+		if( t[src_ip]$tb_tributary[ Dns_failure ] )
+			{ 
 			msg = msg + "High DNS failure rate, possible use of botnet domain flux;";
+			weight = weight_dns_failure;
+			}
 			
 		if ( t[src_ip]$tb_tributary[ Blacklist_cnc_match ] )
+			{
 			msg = msg + "Host contacted known C&C ip/url;";
+			weight = weight_cnc_blacklist_match;
+			}
 
 		if ( t[src_ip]$tb_tributary[ Blacklist_rbn_match ] )
+			{
 			msg = msg + "Host contacted RBN ip/url;";
+			weight = weight_rbn_blacklist_match;
+			}
 
 		if ( t[src_ip]$tb_tributary[ Blacklist_cnc_dns_match ] )
+			{
 			msg = msg + "Host made dns queries about known C&C url;";
+			weight = weight_cnc_blacklist_dns_match;
+			}
 
-    		event CNC::cnc( network_time(), src_ip, msg, t[src_ip]$ip_cnc, t[src_ip]$url_cnc, 
-				t[src_ip]$url_cnc_dns, t[src_ip]$ip_rbn);		
+		if ( t[src_ip]$tb_tributary[ Conficker_match ] )
+			{
+			msg = msg + "Conficker match (search?q=n);";
+			weight = weight_cnc_signature_match;
+			}
+
+		if ( t[src_ip]$tb_tributary[ Bobax_match ] )
+			{
+			msg = msg + "Bobax match (outbound 447/tcp or udp);";
+			weight = weight_cnc_signature_match;
+			}
+
+    		event CNC::cnc( src_ip, weight );		
 	
 		## Log cnc related entries
 		cnc_info$ts = network_time();
@@ -197,7 +255,7 @@ function evaluate( src_ip: addr, t: table[addr] of CncRecord ): bool
 function cnc_record_expired(t: table[addr] of CncRecord, idx: any): interval
 	{
 	evaluate( idx, t );
-	return 0secs;
+	return wnd_cnc;
 	}
 
 function get_cnc_record(): CncRecord
@@ -210,13 +268,16 @@ function get_cnc_record(): CncRecord
 	local r_ip: set[addr]; 
 	rec$reported_ip = r_ip;
 
+	local t: table[ cnc_tributary ] of bool &default=F;
+	rec$tb_tributary = t;
+
 	return rec;
 	}
 
 ## The global state table that maintains various information pertaining to the
 ## major event cnc, and is analyzed when a decision has to be made whether
 ## or not to declare the major event cnc.
-global table_cnc: table[addr] of CncRecord &create_expire=wnd_cnc &expire_func=cnc_record_expired;
+global table_cnc: table[addr] of CncRecord &create_expire=0sec &expire_func=cnc_record_expired;
 
 
 event CNC::dns_failure( src_ip: addr )
@@ -242,98 +303,49 @@ event CNC::dns_failure( src_ip: addr )
 	}
 
 
-event CNC::cnc_url_match( src_ip: addr, cnc_url: string )
+event CNC::conficker_match( our_ip: addr, other_ip: addr, bad_url: string )
 	{
 	## src_ip seen for the first time
-	if (src_ip !in table_cnc)
-		table_cnc[src_ip] = get_cnc_record();
+	if (our_ip !in table_cnc)
+		table_cnc[our_ip] = get_cnc_record();
 
 	# To avoid reporting the same url over and over again
-	if ( cnc_url !in table_cnc[src_ip]$reported_url)
+	if ( bad_url !in table_cnc[our_ip]$reported_url)
 		{
-		table_cnc[src_ip]$url_cnc = cnc_url;
-		table_cnc[src_ip]$tb_tributary[ Blacklist_cnc_match ]=T;
-		local done=evaluate( src_ip, table_cnc );
+		table_cnc[our_ip]$tb_tributary[ Conficker_match ]=T;
+		local done = evaluate( our_ip, table_cnc );
 
-		## Reset cnc_url parameters
+		## Reset parameters
 		if (done)
 			{
-			add table_cnc[src_ip]$reported_url[cnc_url];
-			delete table_cnc[src_ip]$tb_tributary[ Blacklist_cnc_match ];
-			table_cnc[src_ip]$url_cnc = "";
-			}
-		}		
-	}
-
-event CNC::cnc_url_dns_match( src_ip: addr, cnc_url: string )
-	{
-	## src_ip seen for the first time
-	if (src_ip !in table_cnc)
-		table_cnc[src_ip] = get_cnc_record();
-
-	# To avoid reporting the same url over and over again
-	if ( cnc_url !in table_cnc[src_ip]$reported_url)
-		{
-		table_cnc[src_ip]$url_cnc_dns = cnc_url;
-		table_cnc[src_ip]$tb_tributary[ Blacklist_cnc_dns_match ]=T;
-		local done = evaluate( src_ip, table_cnc );
-
-		## Reset cnc_dns_url parameters
-		if (done)
-			{
-			add table_cnc[src_ip]$reported_url[cnc_url];
-			delete table_cnc[src_ip]$tb_tributary[ Blacklist_cnc_dns_match ];
-			table_cnc[src_ip]$url_cnc_dns = "";
+			add table_cnc[our_ip]$reported_url[bad_url];
+			delete table_cnc[our_ip]$tb_tributary[ Conficker_match ];
 			}
 		}		
 	}
 
 
-event CNC::cnc_ip_match( src_ip: addr, cnc_ip: addr )
+event CNC::bobax_match( our_ip: addr, other_ip: addr, bad_port: port )
 	{
 	## src_ip seen for the first time
-	if (src_ip !in table_cnc)
-		table_cnc[src_ip] = get_cnc_record();
+	if (our_ip !in table_cnc)
+		table_cnc[our_ip] = get_cnc_record();
 
 	# To avoid reporting the same ip over and over again
-	if ( cnc_ip !in table_cnc[src_ip]$reported_ip)
+	if ( other_ip !in table_cnc[our_ip]$reported_ip)
 		{
-		table_cnc[src_ip]$ip_cnc = fmt("%s",cnc_ip);
-		table_cnc[src_ip]$tb_tributary[ Blacklist_cnc_match ]=T;
-		local done=evaluate( src_ip, table_cnc );
+		table_cnc[our_ip]$ip_cnc = fmt("%s",other_ip);
+		table_cnc[our_ip]$tb_tributary[ Bobax_match ]=T;
+		local done=evaluate( our_ip, table_cnc );
 
 		## Reset cnc_ip parameters
 		if (done)
 			{
-			add table_cnc[src_ip]$reported_ip[cnc_ip];
-			delete table_cnc[src_ip]$tb_tributary[ Blacklist_cnc_match ];
-			table_cnc[src_ip]$ip_cnc="";
+			add table_cnc[our_ip]$reported_ip[other_ip];
+			delete table_cnc[our_ip]$tb_tributary[ Bobax_match ];
+			table_cnc[our_ip]$ip_cnc="";
 			}
-		}	
-	}
-
-event CNC::rbn_ip_match( src_ip: addr, rbn_ip: addr )
-	{
-	## src_ip seen for the first time
-	if (src_ip !in table_cnc)
-		table_cnc[src_ip] = get_cnc_record();
-
-	# To avoid reporting the same ip over and over again
-	if ( rbn_ip !in table_cnc[src_ip]$reported_ip)
-		{
-		table_cnc[src_ip]$ip_rbn = fmt("%s",rbn_ip);
-		table_cnc[src_ip]$tb_tributary[ Blacklist_rbn_match ]=T;
-		local done=evaluate( src_ip, table_cnc );
-
-		## Reset rbn_ip parameters
-		if (done)
-			{
-			add table_cnc[src_ip]$reported_ip[rbn_ip];
-			delete table_cnc[src_ip]$tb_tributary[ Blacklist_rbn_match ];
-			table_cnc[src_ip]$ip_rbn = "";
-			}
-		}	
-			
+		}		
 	}
 
 ## Handling the default dns_message event to detect dns NXDOMAIN replies
@@ -341,54 +353,121 @@ event dns_message(c: connection, is_orig: bool, msg: dns_msg, len: count)
 	{
 	local id = c$id;
 	local outbound = Site::is_local_addr(id$orig_h);
-	if ( msg$rcode == 3 && outbound )
+
+	if(c?$dns)
 		{
-		event CNC::dns_failure(id$orig_h);
+		if ( c$dns?$rcode_name && c$dns?$qtype_name  )
+			{
+			if ( c$dns$rcode_name=="NXDOMAIN" && (c$dns$qtype_name=="A" || c$dns$qtype_name=="AAAA") && outbound )
+				event CNC::dns_failure(id$orig_h);
+			}
 		}
 	}
 
-## Check if a requested dns query exists in cnc url blacklist
-event dns_request(c: connection, msg: dns_msg, query: string, qtype: count, qclass: count)
+
+event CnC::url_blacklist_match( our_ip: addr, other_ip: addr, bad_url: string, bl_source: string, tag: string )
 	{
-	local outbound = Site::is_local_addr(c$id$orig_h);
-	## FIXME: Add whitelist check
-	if ( outbound && c$dns$qtype_name == "A" )
+	local done = F;
+
+	## src_ip seen for the first time
+	if (our_ip !in table_cnc)
+		table_cnc[our_ip] = get_cnc_record();
+
+	if ( tag == "dns" )
 		{
-		if ( query in BlacklistMgr::tb_blacklists["cnc_url"] )
-			event CNC::cnc_url_dns_match( c$id$orig_h, query );
+		# To avoid reporting the same url over and over again
+		if ( bad_url !in table_cnc[our_ip]$reported_url)
+			{
+			table_cnc[our_ip]$url_cnc_dns = bad_url;
+			table_cnc[our_ip]$tb_tributary[ Blacklist_cnc_dns_match ]=T;
+			done = evaluate( our_ip, table_cnc );
+
+			## Reset cnc_dns_url parameters
+			if (done)
+				{
+				add table_cnc[our_ip]$reported_url[bad_url];
+				delete table_cnc[our_ip]$tb_tributary[ Blacklist_cnc_dns_match ];
+				table_cnc[our_ip]$url_cnc_dns = "";
+				}
+			}		
 		}
-	}
-
-event connection_established( c: connection )
-	{
-	local src: addr;
-	local bad_ip: addr;
-	local outbound = Site::is_local_addr(c$id$orig_h);
-
-	src = outbound? c$id$orig_h: c$id$resp_h;
-	bad_ip = outbound? c$id$resp_h: c$id$orig_h;
-
-	if ( fmt("%s",bad_ip) in BlacklistMgr::tb_blacklists["cnc_ip"] )
+	else if ( tag == "http" )
 		{
-		event CNC::cnc_ip_match( src, bad_ip );
-		}
-	if ( fmt("%s",bad_ip) in BlacklistMgr::tb_blacklists["rbn_ip"]  )
-		event CNC::rbn_ip_match( src, bad_ip );
-	for ( snet in BlacklistMgr::blacklist_rbn_subnet )
-		{
-		if ( bad_ip in snet )
-			event CNC::rbn_ip_match( src, bad_ip );
+		# To avoid reporting the same url over and over again
+		if ( bad_url !in table_cnc[our_ip]$reported_url)
+			{
+			table_cnc[our_ip]$url_cnc = bad_url;
+			table_cnc[our_ip]$tb_tributary[ Blacklist_cnc_match ]=T;
+			done = evaluate( our_ip, table_cnc );
+
+			## Reset cnc_url parameters
+			if (done)
+				{
+				add table_cnc[our_ip]$reported_url[bad_url];
+				delete table_cnc[our_ip]$tb_tributary[ Blacklist_cnc_match ];
+				table_cnc[our_ip]$url_cnc = "";
+				}
+			}
 		}	
 	}
 
-event http_reply(c: connection, version: string, code: count, reason: string)
-	{
-	local outbound = Site::is_local_addr(c$id$orig_h);
-	local our_ip = outbound? c$id$orig_h: c$id$resp_h;
-	local other_ip = outbound? c$id$resp_h: c$id$orig_h;
 
-	if ( c$http$host in BlacklistMgr::tb_blacklists["cnc_url"] )
-		event CNC::cnc_url_match( our_ip, c$http$host ); 		
-		
+event CnC::ip_blacklist_match( our_ip: addr, other_ip: addr, bl_source: string, reason: string )
+	{
+	local done = F;
+
+	## src_ip seen for the first time
+	if (our_ip !in table_cnc)
+		table_cnc[our_ip] = get_cnc_record();
+
+	if ( reason == "CnC" )
+		{
+		# To avoid reporting the same ip over and over again
+		if ( other_ip !in table_cnc[our_ip]$reported_ip)
+			{
+			table_cnc[our_ip]$ip_cnc = fmt("%s",other_ip);
+			table_cnc[our_ip]$tb_tributary[ Blacklist_cnc_match ]=T;
+			done=evaluate( our_ip, table_cnc );
+
+			## Reset cnc_ip parameters
+			if (done)
+				{
+				add table_cnc[our_ip]$reported_ip[other_ip];
+				delete table_cnc[our_ip]$tb_tributary[ Blacklist_cnc_match ];
+				table_cnc[our_ip]$ip_cnc="";
+				}
+			}
+		}
+
+	else if ( reason == "RBN" )
+		{
+		# To avoid reporting the same ip over and over again
+		if ( other_ip !in table_cnc[our_ip]$reported_ip)
+			{
+			table_cnc[our_ip]$ip_rbn = fmt("%s",other_ip);
+			table_cnc[our_ip]$tb_tributary[ Blacklist_rbn_match ]=T;
+			done=evaluate( our_ip, table_cnc );
+
+			## Reset rbn_ip parameters
+			if (done)
+				{
+				add table_cnc[our_ip]$reported_ip[other_ip];
+				delete table_cnc[our_ip]$tb_tributary[ Blacklist_rbn_match ];
+				table_cnc[our_ip]$ip_rbn = "";
+				}
+			}
+		}		
 	}
+
+
+
+
+
+
+
+
+
+
+
+
 

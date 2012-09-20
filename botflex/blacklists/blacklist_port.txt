@@ -1,0 +1,11 @@
+#fields	bad_port	reason	blacklist_source	timestamp
+445	Vulnerable	Dshield	1347985558
+3389	Vulnerable	Dshield	1347985558
+44683	Vulnerable	Dshield	1347985558
+19747	Vulnerable	Dshield	1347985558
+35512	Vulnerable	Dshield	1347985558
+23	Vulnerable	Dshield	1347985558
+12736	Vulnerable	Dshield	1347985558
+6881	Vulnerable	Dshield	1347985558
+80	Vulnerable	Dshield	1347985558
+210	Vulnerable	Dshield	1347985558

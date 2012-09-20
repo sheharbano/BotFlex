@@ -2,104 +2,95 @@
 
 module BlacklistMgr;
 
+type IdxIp: record {
+        bad_ip: addr;
+};
+
+type IdxPort: record {
+        bad_port: count;
+};
+
+type IdxUrl: record {
+        bad_url: string;
+};
+
+type IdxSubnet: record {
+        bad_subnet: subnet;
+};
+
+type ValBlacklist: record {
+	blacklist_source: string;
+        timestamp: time;
+	reason: string;
+};
+
+
 export {
-	## table of blacklists. Each blacklist is a set of strings indexed
-	## by a key. For example, the blacklist of CnC server ip addresses 
-	## is indexed by the string "cnc_ip" and so forth. 
-	const tb_blacklists: table[string] of set[string] &redef;
 
-	## blacklist for subnets. A subnet cannot be treated as a string as it
-	## represents an entire range of ip addresses and must be treated as such.
-	## What we are going with for now is to read in the subnet file in tb_blacklists 
-	## as strings and then parse it again and convert it to a set of subnets, and delete 
-	## the corresponding entry in tb_blacklists (where subnets were strings) 
-	const blacklist_rbn_subnet: set[subnet] &redef; 
-
-	## blacklist for bogon subnets. A packet routed over the public Internet should not 
-	## have a source address in a bogon range (http://www.team-cymru.org/Services/Bogons/).
-	const blacklist_bogon_subnet: set[subnet] &redef; 
-
-	## Blacklist of most exploited / vulnerable ports
-	const blacklist_bad_ports: set[port] &redef; 
-
-	## Name of the file that contains filenames of different blacklists
-	## such as cnc_ip, cnc_url, spam_ip, bad_ip etc. The format of the file
-	## is such that each line should represent a single file preceded by its
-	## identifier. For example, cnc_ip ./cnc_ip.txt could be one line of the
-	## file. The identifier used here (e.g. cnc_ip) is used to index
-	## the filename in tb_blacklists too.
-	global blacklist_srcfile="/usr/local/bro/share/bro/site/botflex/services/src_blacklists.txt" &redef;
-
-	## The interval after which the blacklists must be refreshed, i.e., 
-	## re-read from the blacklist files
-	const blacklist_update_interval = 24hrs &redef;
+	## The full name of blacklist files
+	global filename_blacklist_ip="blacklist_ip.txt";
+	global filename_blacklist_url="blacklist_url.txt";
+	global filename_blacklist_subnet="blacklist_subnet.txt";
+	global filename_blacklist_port="blacklist_port.txt";
 
 	## The prefix for blacklist files.The file blacklist_srcfile contains
 	## only filenames, such as cnc_url.txt etc. The actual path where this
 	## file will be found is specified by the variable below.
 	global prefix_blacklist = "/usr/local/bro/share/bro/site/botflex/blacklists/" &redef;	
+	#global prefix_blacklist = "/home/sheharbano/Desktop/try/" &redef;
+
+	## Tables for holding the actual blacklists
+	## Each blacklist is a table of the form
+	## table<key,reason> of <src,ts>
+	## key: a (ip|subnet|port|url) value
+	## reason: (CnC,Exploit,RBN,Vulnerable)
+	## src: the source from which the blacklist was obtained
+	## ts: timestamp when the blacklist was acquired
+	global blacklist_ip: table[addr] of ValBlacklist = table();
+	global blacklist_url: table[string] of ValBlacklist = table();
+	global blacklist_subnet: table[subnet] of ValBlacklist = table();
+	# This is my hacky table to get around the fact that input framework does
+	# not support reading port type as of now, so port is count 
+	global blacklist_port_count: table[count] of ValBlacklist = table();
+	# The good table where i convert count to port type
+	global blacklist_port: table[port] of ValBlacklist = table();	
 }
 
-
-
-## The event that refreshes our blacklists
-global get_blacklists: event(srcfile: string);
-
-## This event is called after each interval defined by 'blacklist_update_interval'.
-## It takes as argument the name of the file which contains filenames of blacklists.
-## It then updates blacklists from corresponding files.
-event get_blacklists(srcfile: string) &priority=30
+event bro_init() &priority=25 
 	{
-	for( rec in tb_blacklists )
+	local path_bl = fmt("%s%s",prefix_blacklist,filename_blacklist_ip);
+	print fmt("Reading in IP address blacklist from %s...",path_bl);
+	Input::add_table([$source=path_bl, $name="bl_ip_stream", $idx=IdxIp, $val=ValBlacklist, 					 					$destination=BlacklistMgr::blacklist_ip, $mode=Input::REREAD]);
+	Input::remove("bl_ip_stream");	
+
+	path_bl = fmt("%s%s",prefix_blacklist,filename_blacklist_url);
+	print fmt("Reading in URL blacklist from %s...",path_bl);
+	Input::add_table([$source=path_bl, $name="bl_url_stream", $idx=IdxUrl, $val=ValBlacklist, 					$destination=BlacklistMgr::blacklist_url, $mode=Input::REREAD]);
+	Input::remove("bl_url_stream");	
+
+	# GIVES WARNING ON TRAILING ^m AFTER SUBNET VALUE
+	path_bl = fmt("%s%s",prefix_blacklist,filename_blacklist_subnet);
+	print fmt("Reading in subnet blacklist from %s...",path_bl);
+	Input::add_table([$source=path_bl, $name="bl_subnet_stream", $idx=IdxSubnet, $val=ValBlacklist, 					$destination=BlacklistMgr::blacklist_subnet, $mode=Input::REREAD]);
+	Input::remove("bl_subnet_stream");	
+
+	# NO SUPPORT FOR READING PORTS IN INPUT FRAMEWORK
+	path_bl = fmt("%s%s",prefix_blacklist,filename_blacklist_port);
+	print fmt("Reading in vulnerable ports info from %s...",path_bl);
+	Input::add_table([$source=path_bl, $name="bl_port_stream", $idx=IdxPort, $val=ValBlacklist, 					$destination=BlacklistMgr::blacklist_port_count, $mode=Input::REREAD]);
+	Input::remove("bl_port_stream");	
+	}
+
+event Input::update_finished(name: string, source: string) 
+	{ 
+	if ( name == "bl_port_stream" )
 		{
-		delete tb_blacklists[rec];
+		local idx: IdxPort; 
+		for ( [bad_port] in BlacklistMgr::blacklist_port_count )
+			{
+			local val = BlacklistMgr::blacklist_port_count[bad_port];
+			BlacklistMgr::blacklist_port[count_to_port(bad_port,tcp)] = val;
+			}
 		}
-	local blacklist_srcfiles = read_file(srcfile);
-
-	for( f in blacklist_srcfiles )
-		{ 
-		local arr = split( f, /[[:blank:]]*/ );
-		local file_id = arr[1];
-		local file_name = prefix_blacklist+arr[2];
-		tb_blacklists[file_id]=read_file(file_name);
-
-		## If it is a blacklist comprising subnets, place it in a separate list
-		## meant for holding subnets and not subnets represented as strings.
-		if ( file_id == "rbn_subnet" )
-			{
-			for ( str_subnet in tb_blacklists[file_id] )
-				add blacklist_rbn_subnet[ to_subnet(str_subnet) ];
-
-			# delete the redundant string version of the subnet list from tb_blacklists
-			delete tb_blacklists[file_id];
-			}
-		if ( file_id == "bogon_subnet" )
-			{
-			for ( str_subnet in tb_blacklists[file_id] )
-				add blacklist_bogon_subnet[ to_subnet(str_subnet) ];
-
-			# delete the redundant string version of the subnet list from tb_blacklists
-			delete tb_blacklists[file_id];
-			}
-		## If it is a blacklist comprising ports, place it in a separate list
-		## meant for holding ports and not ports represented as strings.
-		if ( file_id == "bad_ports" )
-			{
-			for ( str_port in tb_blacklists[file_id] )
-				add blacklist_bad_ports[ to_port(str_port+"/tcp") ];
-
-			# delete the redundant string version of the ports list from tb_blacklists
-			delete tb_blacklists[file_id];
-			}
-		
-		}
-	schedule blacklist_update_interval { BlacklistMgr::get_blacklists(blacklist_srcfile) };	
 	}
-
-event bro_init() &priority=25
-	{
-	event BlacklistMgr::get_blacklists(blacklist_srcfile);
-	}
-
-
 
