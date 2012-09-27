@@ -66,20 +66,34 @@ event bro_init() &priority=5
 	{
 	Log::create_stream(BotflexScan::LOG_IB, [$columns=Info_ib, $ev=log_scan_ib]);
 	Log::create_stream(BotflexScan::LOG_OB, [$columns=Info_ob, $ev=log_scan_ob]);
-
-	if ( "weight_addr_scan" in Config::table_config )
-		weight_addr_scan = to_double(Config::table_config["weight_addr_scan"]$value);
-
-	if ( "weight_addr_scan_critical" in Config::table_config )
-		weight_addr_scan_critical = to_double(Config::table_config["weight_addr_scan_critical"]$value);
-
-	if ( "weight_port_scan" in Config::table_config )
-		weight_port_scan = to_double(Config::table_config["weight_port_scan"]$value);
-				
-	if ( "weight_low_port_troll" in Config::table_config )
-		weight_low_port_troll = to_double(Config::table_config["weight_low_port_troll"]$value);
-	
 	}
+
+event Input::update_finished(name: string, source: string) 
+	{
+	if ( name == "config_stream" )
+		{
+		if ( "weight_addr_scan" in Config::table_config )
+			weight_addr_scan = to_double(Config::table_config["weight_addr_scan"]$value);
+		else
+			print "Can't find BotflexScan::weight_addr_scan";
+
+		if ( "weight_addr_scan_critical" in Config::table_config )
+			weight_addr_scan_critical = to_double(Config::table_config["weight_addr_scan_critical"]$value);
+		else
+			print "Can't find BotflexScan::weight_addr_scan_critical";
+
+		if ( "weight_port_scan" in Config::table_config )
+			weight_port_scan = to_double(Config::table_config["weight_port_scan"]$value);
+		else
+			print "Can't find BotflexScan::weight_port_scan";
+				
+		if ( "weight_low_port_troll" in Config::table_config )
+			weight_low_port_troll = to_double(Config::table_config["weight_low_port_troll"]$value);			
+		else
+			print "Can't find BotflexScan::weight_low_port_troll";		
+		}
+	}
+
 global scan_ib_info: BotflexScan::Info_ib;
 global scan_ob_info: BotflexScan::Info_ob;
 

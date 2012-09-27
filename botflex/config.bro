@@ -29,26 +29,20 @@ global config_filename = "/usr/local/bro/share/bro/site/botflex/config.txt";
 
 event bro_init() &priority=25
 	{
-	Input::add_table([$source=config_filename, $name="config_stream", $idx=Idx, 
-			  $val=Val, $destination=table_config, $mode=Input::REREAD]);
-	Input::remove("config_stream");
+	#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	# Uncomment the following later
+	#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+	#Input::add_table([$source=config_filename, $name="config_stream", $idx=Idx, 
+	#		  $val=Val, $destination=table_config, $mode=Input::REREAD]);
+	#Input::remove("config_stream");
 	
 	}
 
 event Input::update_finished(name: string, source: string) 
 	{
-	# Setting local subnets
-	if ( "local_net" in table_config )
-		{  
-		local str_our_nets = table_config["local_net"]$value;
-		local our_nets = split( str_our_nets, /[,]/ );
-	
-		for ( nt in our_nets )
-			add Site::local_nets[ to_subnet(our_nets[nt]) ];
-
-		}
-	else
-		print "Could not find local subnets";
+	#if (name == "config_stream")
+	#	print table_config;
 	}
 
 

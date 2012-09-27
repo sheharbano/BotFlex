@@ -2,8 +2,8 @@
 ##! scripts and decides whether a given host is a bot or not
 
 @load botflex/utils/types
-@load botflex/services/blacklist_mgr
 @load botflex/config
+@load botflex/services/blacklist_mgr
 @load botflex/detection/scan/botflex-scan
 @load botflex/detection/exploit/exploit
 @load botflex/detection/egg/egg
@@ -78,17 +78,35 @@ function get_correlation_record(): CorrelationRecord
 	return rec;	
 	}
 
+
 event bro_init()
 	{
 	Log::create_stream( Correlation::LOG, [$columns=Info, $ev=log_bot_infection] );
-	if ( "correlation" in Config::table_config  )
-			{
-			if ( "wnd_correlation" in Config::table_config )
-				{
-				wnd_correlation = string_to_interval(Config::table_config["wnd_correlation"]$value);
-				}
-			}
 	}
+
+event Input::update_finished(name: string, source: string) 
+	{
+	if ( name == "config_stream" )
+		{
+		if ( "wnd_correlation" in Config::table_config )
+			wnd_correlation = string_to_interval(Config::table_config["wnd_correlation"]$value);
+		else
+			print "Could not find Correlation::wnd_correlation";
+		
+		if ( "local_net" in Config::table_config )
+			{  
+			local str_our_nets = Config::table_config["local_net"]$value;
+			local our_nets = split( str_our_nets, /[,]/ );
+	
+			for ( nt in our_nets )
+				add Site::local_nets[ to_subnet(our_nets[nt]) ];
+			}
+		else
+			print "Could not find local subnets (Site::local_nets) in BotFlex config.txt";
+		}
+	}
+	
+
 
 global bot_infection_info:Correlation::Info;
 
@@ -103,6 +121,7 @@ function evaluate( src_ip: addr, t: table[addr] of CorrelationRecord ): bool
 	local condition1 = F;
 	local condition2 = F;
 	local condition3 = F;
+	local condition4 = F;
 
 	local card_scan = t[src_ip]$tb_tributary[Scan]$cardinality;
 	local card_exploit = t[src_ip]$tb_tributary[Exploit]$cardinality;
@@ -127,15 +146,19 @@ function evaluate( src_ip: addr, t: table[addr] of CorrelationRecord ): bool
 		     (card_cnc > 0 && card_attack > 0) ||
 		     (card_attack > 0 && card_egg_download > 0); 
 
+	# Evidence of inbound scan and any other phase
+	condition4 = (card_cnc > 0) && ( (card_exploit > 0) || (card_egg_download > 0) || (card_cnc > 0) || (card_attack > 0) );
 
 	if (condition1)
 		rule_id = "condition1";
-	if (condition2)
+	else if (condition2)
 		rule_id = "condition2";
-	if (condition3)
+	else if (condition3)
 		rule_id = "condition3";
+	else if (condition4)
+		rule_id = "condition4";
 		
-	if( condition1 || condition2 || condition3 )
+	if( condition1 || condition2 || condition3 || condition4 )
 		{		
 		local ts = network_time();
     		event bot_infection( ts, src_ip, rule_id );		

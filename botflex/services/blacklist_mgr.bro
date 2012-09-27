@@ -92,5 +92,6 @@ event Input::update_finished(name: string, source: string)
 			BlacklistMgr::blacklist_port[count_to_port(bad_port,tcp)] = val;
 			}
 		}
+
 	}
 

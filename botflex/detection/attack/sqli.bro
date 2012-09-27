@@ -40,7 +40,7 @@ export {
 	global log_sqli: event(rec: Info);
 
 	## Thresholds for different contributors to the major event bot_attack
-	const sqli_attempt_threshold = 1 &redef;
+	const sqli_attempt_threshold = 5 &redef;
 		
 	const weight_sqli = 0.5 &redef;
 
@@ -59,28 +59,35 @@ global sqli_info:Sqli::Info;
 event bro_init() &priority=5
 	{
 	Log::create_stream(Sqli::LOG, [$columns=Info, $ev=log_sqli]);
-	if ( "sqli" in Config::table_config  )
-			{
-			if ( "th_sqli_attempt" in Config::table_config )
-				{
-				sqli_attempt_threshold = to_count(Config::table_config["th_sqli_attempt"]$value);
-				}
-			if ( "wnd_sqli" in Config::table_config )
-				{
-				wnd_sqli = string_to_interval(Config::table_config["wnd_sqli"]$value);
-				}
-			if ( "weight_sqli" in Config::table_config )
-				{
-				weight_sqli = to_double(Config::table_config["weight_sqli"]$value);
-				}
-			if ( "evaluation_mode" in Config::table_config )
-				{
-				sqli_evaluation_mode = string_to_evaluationmode(Config::table_config["evaluation_mode"]$value
-);
-				}
-			}
-
 	}
+
+event Input::update_finished(name: string, source: string) 
+	{
+	if ( name == "config_stream" )
+		{
+		if ( "th_sqli_attempt" in Config::table_config )
+			sqli_attempt_threshold = to_count(Config::table_config["th_sqli_attempt"]$value);
+		else
+			print "Can't find Sqli::th_sqli_attempt";
+
+		if ( "wnd_sqli" in Config::table_config )
+			wnd_sqli = string_to_interval(Config::table_config["wnd_sqli"]$value);
+		else
+			print "Can't find Sqli::wnd_sqli";
+
+		if ( "weight_sqli" in Config::table_config )
+			weight_sqli = to_double(Config::table_config["weight_sqli"]$value);
+		else
+			print "Can't find Sqli::weight_sqli";
+		
+		if ( "evaluation_mode" in Config::table_config )
+			sqli_evaluation_mode = string_to_evaluationmode(Config::table_config["evaluation_mode"]$value );
+		else
+			print "Can't find Sqli::evaluation_mode";
+				
+		}
+	}
+
 
 ## Type of the value of the global table table_sqli
 ## Additional contributary factors that increase the confidence

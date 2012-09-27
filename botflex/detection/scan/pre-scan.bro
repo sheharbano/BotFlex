@@ -43,11 +43,11 @@ export {
 	const analyze_all_services = T &redef;
 
 	## Thresholds for triggering address and port scan
-	const th_addr_scan = 60 &redef;
-	const th_addr_scan_critical = 10 &redef;
-	const th_port_scan = 10 &redef;
+	const th_addr_scan = 35 &redef;
+	const th_addr_scan_critical = 20 &redef;
+	const th_port_scan = 15 &redef;
 	# Threshold for scanning privileged ports.
-	const th_low_port_troll = 5 &redef;
+	const th_low_port_troll = 10 &redef;
 
 	const troll_skip_service = {
 		25/tcp, 21/tcp, 22/tcp, 20/tcp, 80/tcp,
@@ -90,8 +90,8 @@ export {
 	global distinct_backscatter_peers: table[addr] of table[addr] of count
 		&read_expire = 15 min;
 	
-	const wnd_addr_scan = 15mins &redef;
-	const wnd_port_scan = 15mins &redef;
+	const wnd_addr_scan = 5mins &redef;
+	const wnd_port_scan = 5mins &redef;
 
 	global remove_possible_source:
 		function(s: set[addr], idx: addr): interval;
@@ -127,41 +127,43 @@ function distinct_ports_expired(t: table[idx_distinct_ports] of set[port], idx: 
 	}
 
 global distinct_peers: table[idx_distinct_peers] of set[addr] &create_expire=0secs &expire_func=distinct_peers_expired;
-global distinct_ports: table[idx_distinct_ports] of set[port] &create_expire=0secs &expire_func=distinct_ports_expired;
+global distinct_ports: table[idx_distinct_ports] of set[port] &create_expire=0secs &expire_func=distinct_ports_expired;	
 
-	event bro_init() &priority=3
+event Input::update_finished(name: string, source: string) 
+	{
+	if ( name == "config_stream" )
 		{
-			if ( "th_addr_scan" in Config::table_config )
-				{
-				th_addr_scan = to_count(Config::table_config["th_addr_scan"]$value);
-				}
+		if ( "th_addr_scan" in Config::table_config )
+			th_addr_scan = to_count(Config::table_config["th_addr_scan"]$value);
+		else
+			print "Can't find Scan::th_addr_scan";
 
-			if ( "th_addr_scan_critical" in Config::table_config )
-				{
-				th_addr_scan_critical = to_count(Config::table_config["th_addr_scan_critical"]$value);
-				}
+		if ( "th_addr_scan_critical" in Config::table_config )
+			th_addr_scan_critical = to_count(Config::table_config["th_addr_scan_critical"]$value);
+		else
+			print "Can't find Scan::th_addr_scan_critical";		
 
-			if ( "th_port_scan" in Config::table_config )
-				{
-				th_port_scan = to_count(Config::table_config["th_port_scan"]$value);
-				}
+		if ( "th_port_scan" in Config::table_config )
+			th_port_scan = to_count(Config::table_config["th_port_scan"]$value);
+		else
+			print "Can't find Scan::th_port_scan";
 
-			if ( "th_low_port_troll" in Config::table_config )
-				{
-				th_low_port_troll = to_count(Config::table_config["th_low_port_troll"]$value);
-				}
+		if ( "th_low_port_troll" in Config::table_config )
+			th_low_port_troll = to_count(Config::table_config["th_low_port_troll"]$value);
+		else
+			print "Can't find Scan::th_low_port_troll";
 
-			if ( "wnd_addr_scan" in Config::table_config )
-				{
-				wnd_addr_scan = string_to_interval(Config::table_config["wnd_addr_scan"]$value);
-				}
+		if ( "wnd_addr_scan" in Config::table_config )
+			wnd_addr_scan = string_to_interval(Config::table_config["wnd_addr_scan"]$value);
+		else
+			print "Can't find Scan::wnd_addr_scan";
 
-			if ( "wnd_port_scan" in Config::table_config )
-				{
-				wnd_port_scan = string_to_interval(Config::table_config["wnd_port_scan"]$value);
-				}
-			
-		}	
+		if ( "wnd_port_scan" in Config::table_config )
+			wnd_port_scan = string_to_interval(Config::table_config["wnd_port_scan"]$value);
+		else
+			print "Can't find Scan::wnd_port_scan";						
+		}
+	}
 
 
 global thresh_check: function(v: vector of count, idx: table[addr] of count,
@@ -315,6 +317,7 @@ function check_scan(c: connection, established: bool, reverse: bool): bool
 					$sub=subms ]);
 				}
 			}
+		return F;
 		}
 
 
@@ -343,7 +346,7 @@ function check_scan(c: connection, established: bool, reverse: bool): bool
 			local m = |distinct_ports[idx_port]|;
 			NOTICE([$note=PortScan, $n=m, $src=orig, $dst=resp,
 			$p=service,
-			$identifier=fmt("%s-%d", orig, n),
+			$identifier=fmt("%s-%d", orig, m),
 			$msg=fmt("%s has scanned %d ports of %s",
 				orig, m, resp), 
 				$sub = "Medium"]);

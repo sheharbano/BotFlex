@@ -43,7 +43,7 @@ export {
 
 	## Thresholds for different contributors to the major event bot_attack
 	const mx_threshold = 1 &redef;
-	const smtp_threshold = 1 &redef;
+	const smtp_threshold = 20 &redef;
 
 	const weight_spam_failed_mx = 1.0 &redef;
 	const weight_spam_failed_smtp = 0.8 &redef;
@@ -54,34 +54,43 @@ global spam_info:Spam::Info;
 event bro_init()
 	{
 	Log::create_stream(Spam::LOG, [$columns=Info, $ev=log_spam]);
-	if ( "spam" in Config::table_config  )
-			{
-			if ( "th_smtp" in Config::table_config )
-				{
-				smtp_threshold = to_count(Config::table_config["th_smtp"]$value);
-				}
-			if ( "th_mx_queries" in Config::table_config )
-				{
-				mx_threshold = to_count(Config::table_config["th_mx_queries"]$value);
-				}
-			if ( "wnd_spam" in Config::table_config )
-				{
-				wnd_spam = string_to_interval(Config::table_config["wnd_spam"]$value);
-				}
-			if ( "weight_spam_failed_mx" in Config::table_config )
-				{
-				weight_spam_failed_mx = to_double(Config::table_config["weight_spam_failed_mx"]$value);
-				}
-			if ( "weight_spam_failed_smtp" in Config::table_config )
-				{
-				weight_spam_failed_smtp = to_double(Config::table_config["weight_spam_failed_smtp"]$value);
-				}
-			if ( "evaluation_mode" in Config::table_config )
-				{
-				spam_evaluation_mode = string_to_evaluationmode(Config::table_config["evaluation_mode"]$value);
-				}
-			}
-	
+	}
+
+event Input::update_finished(name: string, source: string) 
+	{
+	if ( name == "config_stream" )
+		{
+		if ( "th_smtp" in Config::table_config )
+			smtp_threshold = to_count(Config::table_config["th_smtp"]$value);
+		else
+			print "Could not find Spam::th_smtp";
+
+		if ( "th_mx_queries" in Config::table_config )
+			mx_threshold = to_count(Config::table_config["th_mx_queries"]$value);
+		else
+			print "Could not find Spam::th_mx_queries";
+
+		if ( "wnd_spam" in Config::table_config )
+			wnd_spam = string_to_interval(Config::table_config["wnd_spam"]$value);
+		else
+			print "Could not find Spam::wnd_spam";
+
+		if ( "weight_spam_failed_mx" in Config::table_config )
+			weight_spam_failed_mx = to_double(Config::table_config["weight_spam_failed_mx"]$value);
+		else
+			print "Could not find Spam::weight_spam_failed_mx";
+
+		if ( "weight_spam_failed_smtp" in Config::table_config )
+			weight_spam_failed_smtp = to_double(Config::table_config["weight_spam_failed_smtp"]$value);
+		else
+			print "Could not find Spam::weight_spam_failed_smtp";	
+
+		if ( "evaluation_mode" in Config::table_config )
+			spam_evaluation_mode = string_to_evaluationmode(Config::table_config["evaluation_mode"]$value);
+		else
+			print "Could not find Spam::evaluation_mode";
+				
+		}
 	}
 
 ## Type of the value of the global table table_spam

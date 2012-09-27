@@ -40,7 +40,7 @@ export {
 	type egg_tributary: enum { Tcymru_match, Disguised_exe };
 
 	## Expire interval for the global table concerned with maintaining egg_download/upload info
-	const wnd_egg = 60mins &redef;
+	const wnd_egg = 10mins &redef;
 
 	## The evaluation mode (one of the modes defined in enum evaluation_mode in utils/types)
 	const egg_evaluation_mode = OR; 
@@ -116,31 +116,39 @@ type EggRecord: record {
 event bro_init() &priority=5
 	{
 	Log::create_stream(Egg::LOG, [$columns=Info, $ev=log_egg_download]);
-
-	if ( "egg" in Config::table_config  )
-			{
-			if ( "th_disguised_exe" in Config::table_config )
-				{
-				disguised_exe_threshold = to_count(Config::table_config["th_disguised_exe"]$value);
-				}
-			if ( "wnd_egg" in Config::table_config )
-				{
-				wnd_egg = string_to_interval(Config::table_config["wnd_egg"]$value);
-				}
-			if ( "weight_egg_signature_match" in Config::table_config )
-				{
-				weight_egg_signature_match = to_double(Config::table_config["weight_egg_signature_match"]$value);
-				}
-			if ( "weight_disguised_exe" in Config::table_config )
-				{
-				weight_disguised_exe = to_double(Config::table_config["weight_disguised_exe"]$value);
-				}
-			if ( "evaluation_mode" in Config::table_config )
-				{
-				egg_evaluation_mode = string_to_evaluationmode(Config::table_config["evaluation_mode"]$value);
-				}	
-			}
 	}
+
+event Input::update_finished(name: string, source: string) 
+	{
+	if ( name == "config_stream" )
+		{
+		if ( "th_disguised_exe" in Config::table_config )
+			disguised_exe_threshold = to_count(Config::table_config["th_disguised_exe"]$value);
+		else
+			print "Can't find Egg::th_disguised_exe";
+		
+		if ( "wnd_egg" in Config::table_config )
+			wnd_egg = string_to_interval(Config::table_config["wnd_egg"]$value);
+		else
+			print "Can't find Egg::wnd_egg";
+
+		if ( "weight_egg_signature_match" in Config::table_config )
+			weight_egg_signature_match = to_double(Config::table_config["weight_egg_signature_match"]$value);
+		else
+			print "Can't find Egg::weight_egg_signature_match";
+
+		if ( "weight_disguised_exe" in Config::table_config )
+			weight_disguised_exe = to_double(Config::table_config["weight_disguised_exe"]$value);
+		else
+			print "Can't find Egg::weight_disguised_exe";		
+		
+		if ( "evaluation_mode" in Config::table_config )
+			egg_evaluation_mode = string_to_evaluationmode(Config::table_config["evaluation_mode"]$value);
+		else
+			print "Can't find Egg::evaluation_mode";		
+		}
+	}
+
 global egg_info: Egg::Info;
 
 ## The following set of functions calculate and, or and majority on a table of

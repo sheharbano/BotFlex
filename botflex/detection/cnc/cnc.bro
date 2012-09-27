@@ -38,14 +38,14 @@ export {
 	const cnc_evaluation_mode = OR;
 
 	## Thresholds for different contributors to the major event cnc
-	const dns_failure_threshold = 20 &redef;
+	const dns_failure_threshold = 25 &redef;
 	const cnc_blacklist_match_threshold = 0 &redef;
 	const cnc_dns_blacklist_match_threshold = 0 &redef;
 	const rbn_blacklist_match_threshold = 0 &redef;
 
-	const weight_dns_failure = 0.5 &redef;
+	const weight_dns_failure = 0.8 &redef;
 	const weight_cnc_blacklist_match = 1.0 &redef;
-	const weight_cnc_blacklist_dns_match = 0.8 &redef;
+	const weight_cnc_blacklist_dns_match = 0.5 &redef;
 	const weight_cnc_signature_match = 0.8 &redef;	
 	const weight_rbn_blacklist_match = 0.5 &redef;
 
@@ -94,41 +94,52 @@ global dns_failure: event( src_ip: addr );
 event bro_init()
 	{
 	Log::create_stream(CNC::LOG, [$columns=Info, $ev=log_cnc]);
-	if ( "cnc" in Config::table_config  )
-			{
-			if ( "th_dns_failure" in Config::table_config )
-				{
-				dns_failure_threshold = to_count(Config::table_config["th_dns_failure"]$value);
-				}
-			if ( "wnd_cnc" in Config::table_config )
-				{
-				wnd_cnc = string_to_interval(Config::table_config["wnd_cnc"]$value);
-				}
-			if ( "weight_dns_failure" in Config::table_config )
-				{
-				weight_dns_failure = to_double(Config::table_config["weight_dns_failure"]$value);
-				}
-			if ( "weight_cnc_blacklist_match" in Config::table_config )
-				{
-				weight_cnc_blacklist_match = to_double(Config::table_config["weight_cnc_blacklist_match"]$value);
-				}
-			if ( "weight_cnc_blacklist_dns_match" in Config::table_config )
-				{
-				weight_cnc_blacklist_dns_match = to_double(Config::table_config["weight_cnc_blacklist_dns_match"]$value);
-				}
-			if ( "weight_cnc_signature_match" in Config::table_config )
-				{
-				weight_cnc_signature_match = to_double(Config::table_config["weight_cnc_signature_match"]$value);
-				}
-			if ( "weight_rbn_blacklist_match" in Config::table_config )
-				{
-				weight_rbn_blacklist_match = to_double(Config::table_config["weight_rbn_blacklist_match"]$value);
-				}
-			if ( "evaluation_mode" in Config::table_config )
-				{
-				cnc_evaluation_mode = string_to_evaluationmode(Config::table_config["evaluation_mode"]$value);
-				}
-			}
+	}
+
+event Input::update_finished(name: string, source: string) 
+	{
+	if ( name == "config_stream" )
+		{
+		if ( "th_dns_failure" in Config::table_config )
+			dns_failure_threshold = to_count(Config::table_config["th_dns_failure"]$value);
+		else
+			print "Cannot find CNC::th_dns_failure";
+
+		if ( "wnd_cnc" in Config::table_config )
+			wnd_cnc = string_to_interval(Config::table_config["wnd_cnc"]$value);
+		else
+			print "Cannot find CNC::wnd_cnc";
+
+		if ( "weight_dns_failure" in Config::table_config )
+			weight_dns_failure = to_double(Config::table_config["weight_dns_failure"]$value);
+		else
+			print "Cannot find CNC::weight_dns_failure";
+
+		if ( "weight_cnc_blacklist_match" in Config::table_config )
+			weight_cnc_blacklist_match = to_double(Config::table_config["weight_cnc_blacklist_match"]$value);
+		else
+			print "Cannot find CNC::weight_cnc_blacklist_match";
+		
+		if ( "weight_cnc_blacklist_dns_match" in Config::table_config )
+			weight_cnc_blacklist_dns_match = to_double(Config::table_config["weight_cnc_blacklist_dns_match"]$value);
+		else
+			print "Cannot find CNC::weight_cnc_blacklist_dns_match";		
+	
+		if ( "weight_cnc_signature_match" in Config::table_config )
+			weight_cnc_signature_match = to_double(Config::table_config["weight_cnc_signature_match"]$value);
+		else
+			print "Cannot find CNC::weight_cnc_signature_match";			
+		
+		if ( "weight_rbn_blacklist_match" in Config::table_config )
+			weight_rbn_blacklist_match = to_double(Config::table_config["weight_rbn_blacklist_match"]$value);
+		else				
+			print "Cannot find CNC::weight_rbn_blacklist_match";
+
+		if ( "evaluation_mode" in Config::table_config )
+			cnc_evaluation_mode = string_to_evaluationmode(Config::table_config["evaluation_mode"]$value);
+		else
+			print "Cannot find CNC::evaluation_mode";
+		}
 	}
 
 global cnc_info: CNC::Info;
