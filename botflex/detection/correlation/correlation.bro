@@ -103,6 +103,7 @@ event Input::update_finished(name: string, source: string)
 			}
 		else
 			print "Could not find local subnets (Site::local_nets) in BotFlex config.txt";
+
 		}
 	}
 	

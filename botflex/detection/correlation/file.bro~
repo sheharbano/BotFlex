@@ -1,0 +1,37 @@
+module Attack;
+
+export {
+	redef enum Log::ID += { LOG };
+
+	type Info: record {
+		ts:                time              &log;
+		src_ip:		   set[addr]              &log;
+		msg:               string            &log;
+		
+	};
+	redef record connection += {
+	conn: Info &optional;
+	};
+
+	## Event that can be handled to access the attack
+	## record as it is sent on to the logging framework.
+	global log_attack: event(rec: Info);
+}
+
+
+event bro_init()
+	{
+	Log::create_stream( Attack::LOG, [$columns=Info, $ev=log_attack] );
+	}
+
+global attack_info:Attack::Info;
+
+event bro_done()
+	{
+	## Log attack related entries
+	attack_info$ts = network_time();
+	add attack_info$src_ip[1.1.1.1];add attack_info$src_ip[2.1.1.1];add attack_info$src_ip[3.1.1.1]; 
+	attack_info$msg = "This is my message";
+
+	Log::write(Attack::LOG,attack_info);
+	}

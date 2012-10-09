@@ -33,16 +33,18 @@ event bro_init() &priority=25
 	# Uncomment the following later
 	#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	#Input::add_table([$source=config_filename, $name="config_stream", $idx=Idx, 
-	#		  $val=Val, $destination=table_config, $mode=Input::REREAD]);
-	#Input::remove("config_stream");
+	Input::add_table([$source=config_filename, $name="config_stream", $idx=Idx, 
+			  $val=Val, $destination=table_config, $mode=Input::REREAD]);
+	Input::remove("config_stream");
 	
 	}
 
 event Input::update_finished(name: string, source: string) 
 	{
-	#if (name == "config_stream")
-	#	print table_config;
+	if (name == "config_stream")
+		{
+		print table_config;
+		}
 	}
 
 
