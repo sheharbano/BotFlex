@@ -8,6 +8,7 @@ BotFlex is an open source tool for bot detection and analysis tool. Though it wa
 
 ====================================================
 How to get going:
+====================================================
 
 1) Install Bro (http://www.bro-ids.org/documentation/quickstart.html)
 2) Download BotFlex from (https://github.com/sheharbano/BotFlex/tree/master/botflex)
@@ -17,8 +18,10 @@ How to get going:
        trace file:  bro -r <trace.pcap> /usr/local/bro/share/bro/site/botflex/detection/correlation/correlation.bro
 
 
-
 ====================================================
+How it works:
+====================================================
+
 BotFlex comes equipped with the following:
 
 ********************
@@ -83,8 +86,8 @@ Signs of aggressive behavior indicating that the host is compromised
 --> SQL injection attacks
 
 =============================================================
-
 Interpreting log files:
+=============================================================
 
 Lets do an example
 
@@ -122,12 +125,16 @@ sqli.log
 botflexscan_log_ob.log
 
 =====================================================
+What we don't do:
+=====================================================
 
 BotFlex is not good (read: sucks) at the following:
 
 --> Does not work on clusters at the moment (though it's on the menu and should happen soon!)
 --> Does not do Snort style signature based detection (no *Rules* :-))
 
+====================================================
+End note:
 ====================================================
 
 That's all folks. I welcome your questions / feedback 
