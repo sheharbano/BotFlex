@@ -5,7 +5,7 @@
 #path	reporter
 #fields	parameter	value
 #types	string	string
-local_net	128.3.0.0/16,131.243.0.0/16,198.128.0.0/18
+local_net	1.1.1.1/16,2.2.2.2/16
 th_addr_scan	35
 weight_addr_scan	0.8
 th_addr_scan_critical	20
