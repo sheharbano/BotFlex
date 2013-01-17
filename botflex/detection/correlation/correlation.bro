@@ -38,7 +38,7 @@ export {
 	type correlation_tributary: enum { Scan, Exploit, Egg_Download, CnC, Attack };
 
 	## Expire interval for the global table concerned with maintaining bot_infection info
-	const wnd_correlation = 12hrs &redef; 
+	global wnd_correlation = 12hrs; 
 
 	## The event that sufficient evidence has been gathered to declare
 	## bot_infection
@@ -84,7 +84,7 @@ event bro_init()
 	Log::create_stream( Correlation::LOG, [$columns=Info, $ev=log_bot_infection] );
 	}
 
-event Input::update_finished(name: string, source: string) 
+event Input::end_of_data(name: string, source: string) 
 	{
 	if ( name == "config_stream" )
 		{
@@ -137,18 +137,19 @@ function evaluate( src_ip: addr, t: table[addr] of CorrelationRecord ): bool
 	local weight_attack = t[src_ip]$tb_tributary[Attack]$weight;
 
 	# Evidence of infection and evidence of CnC communication or attack
-	condition1 = (weight_cnc > 0.5) || (card_cnc > 1);
+	#condition1 = (weight_cnc > 0.5) || (card_cnc > 1);
 
 	# Evidence of infection and evidence of Cnc communication or attack
-	condition2 = (card_exploit > 0) && ( (card_egg_download > 0)  || (card_cnc > 0) || (card_attack > 0));
+	#condition2 = (card_exploit > 0) && ( (card_egg_download > 0)  || (card_cnc > 0) || (card_attack > 0));
 
 	# Two disjoint instances of heuristically acquired Cnc evidence, egg download and attack behvaior
-	condition3 = (card_cnc > 0 && card_egg_download > 0) || 
+	#condition3 = (card_cnc > 0 && card_egg_download > 0) || 
 		     (card_cnc > 0 && card_attack > 0) ||
 		     (card_attack > 0 && card_egg_download > 0); 
 
 	# Evidence of inbound scan and any other phase
-	condition4 = (card_cnc > 0) && ( (card_exploit > 0) || (card_egg_download > 0) || (card_cnc > 0) || (card_attack > 0) );
+	#condition4 = (card_cnc > 0) && ( (card_exploit > 0) || (card_egg_download > 0) || (card_cnc > 0) || (card_attack > 0) );
+	condition4 = ( (card_scan > 0) || (card_exploit > 0) || (card_egg_download > 0) || (card_cnc > 0) || (card_attack > 0) );
 
 	if (condition1)
 		rule_id = "condition1";
@@ -157,7 +158,7 @@ function evaluate( src_ip: addr, t: table[addr] of CorrelationRecord ): bool
 	else if (condition3)
 		rule_id = "condition3";
 	else if (condition4)
-		rule_id = "condition4";
+		rule_id = "condition_all";
 		
 	if( condition1 || condition2 || condition3 || condition4 )
 		{		

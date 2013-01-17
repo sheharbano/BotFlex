@@ -24,10 +24,10 @@ export {
 	};
 	
 	## Expire interval for the global table concerned with maintaining sqli info
-	const wnd_sqli = 10mins &redef;
+	global wnd_sqli = 10mins;
 
 	## The evaluation mode (one of the modes defined in enum evaluation_mode in utils/types)
-	const sqli_evaluation_mode = OR;
+	global sqli_evaluation_mode = OR;
 
 	## The contributory factors (or tributaries) to major event sqli attack
 	type sqli_tributary: enum { Signature_match, };
@@ -40,9 +40,9 @@ export {
 	global log_sqli: event(rec: Info);
 
 	## Thresholds for different contributors to the major event bot_attack
-	const sqli_attempt_threshold = 5 &redef;
+	global sqli_attempt_threshold = 5;
 		
-	const weight_sqli = 0.5 &redef;
+	global weight_sqli = 0.5;
 
 	## Regular expression is used to match URI based SQL injections.
 	const match_sql_injection_uri = 
@@ -61,7 +61,7 @@ event bro_init() &priority=5
 	Log::create_stream(Sqli::LOG, [$columns=Info, $ev=log_sqli]);
 	}
 
-event Input::update_finished(name: string, source: string) 
+event Input::end_of_data(name: string, source: string) 
 	{
 	if ( name == "config_stream" )
 		{

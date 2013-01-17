@@ -29,10 +29,10 @@ export {
 	type spam_tributary: enum { SMTP_threshold_crossed, MX_query_threshold_crossed };
 
 	## Expire interval for the global table concerned with maintaining cnc info
-	const wnd_spam = 5mins &redef;
+	global wnd_spam = 5mins;
 
 	## The evaluation mode (one of the modes defined in enum evaluation_mode in utils/types)
-	const spam_evaluation_mode = OR;
+	global spam_evaluation_mode = OR;
 
 	## The event that spam.bro reports spam
 	global spam: event( src_ip: addr, weight: double );
@@ -42,11 +42,11 @@ export {
 	global log_spam: event(rec: Info);
 
 	## Thresholds for different contributors to the major event bot_attack
-	const mx_threshold = 1 &redef;
-	const smtp_threshold = 20 &redef;
+	global mx_threshold = 1;
+	global smtp_threshold = 20;
 
-	const weight_spam_failed_mx = 1.0 &redef;
-	const weight_spam_failed_smtp = 0.8 &redef;
+	global weight_spam_failed_mx = 1.0;
+	global weight_spam_failed_smtp = 0.8;
        }
 
 global spam_info:Spam::Info;
@@ -56,7 +56,7 @@ event bro_init()
 	Log::create_stream(Spam::LOG, [$columns=Info, $ev=log_spam]);
 	}
 
-event Input::update_finished(name: string, source: string) 
+event Input::end_of_data(name: string, source: string) 
 	{
 	if ( name == "config_stream" )
 		{

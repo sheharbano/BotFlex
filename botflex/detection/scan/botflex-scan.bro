@@ -55,11 +55,11 @@ export {
 	       num_addrs_scanned: count, target_port: port, msg: string, victims: string, outbound: bool );
 
 	## Weights of different events
-	const weight_addr_scan = 0.8 &redef;
-	const weight_addr_scan_critical = 1.0 &redef;
-	const weight_port_scan = 0.25 &redef;
+	global weight_addr_scan = 0.8;
+	global weight_addr_scan_critical = 1.0;
+	global weight_port_scan = 0.25;
 	# Threshold for scanning privileged ports.
-	const weight_low_port_troll = 0.5 &redef;
+	global weight_low_port_troll = 0.5;
 }
 
 event bro_init() &priority=5
@@ -68,7 +68,7 @@ event bro_init() &priority=5
 	Log::create_stream(BotflexScan::LOG_OB, [$columns=Info_ob, $ev=log_scan_ob]);
 	}
 
-event Input::update_finished(name: string, source: string) 
+event Input::end_of_data(name: string, source: string) 
 	{
 	if ( name == "config_stream" )
 		{

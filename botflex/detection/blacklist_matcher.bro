@@ -6,6 +6,7 @@
 @load botflex/detection/exploit/exploit
 @load botflex/detection/cnc/cnc
 
+
 event connection_established( c: connection )
 	{
 	local our_ip: addr;
@@ -31,9 +32,13 @@ event connection_established( c: connection )
 		if ( bl_reason == "Exploit" )
 			event Exploit::ip_blacklist_match( our_ip, other_ip, bl_source );
 		else if ( bl_reason == "CnC" )
+			{
 			event CNC::ip_blacklist_match( our_ip, other_ip, bl_source, bl_reason );
+			}
 		else if ( bl_reason == "RBN" )
-			event CNC::ip_blacklist_match( our_ip, other_ip, bl_source, bl_reason );	
+			{
+			event CNC::ip_blacklist_match( our_ip, other_ip, bl_source, bl_reason );
+			}	
 		}
 	## Otherwise, check in subnet blacklist
 	else
@@ -69,14 +74,20 @@ event http_reply(c: connection, version: string, code: count, reason: string)
 		{
 		local host = c$http$host;
 
-		if ( [c$http$host] in BlacklistMgr::blacklist_url )
+		local bl_url: string;
+		for ( [bl_url] in  BlacklistMgr::blacklist_url)
 			{
-			bl_source = BlacklistMgr::blacklist_url[host]$blacklist_source;
-			bl_reason = BlacklistMgr::blacklist_url[host]$reason;
-			if ( bl_reason == "Exploit" )
-				event Exploit::url_blacklist_match ( our_ip, other_ip, host, bl_source );
-			else if ( bl_reason == "CnC" )
-				event CNC::url_blacklist_match ( our_ip, other_ip, host, bl_source, "http" );
+			if ( c$http$host in bl_url || bl_url in c$http$host )
+				{
+				bl_source = BlacklistMgr::blacklist_url[bl_url]$blacklist_source;
+				bl_reason = BlacklistMgr::blacklist_url[bl_url]$reason;
+				if ( bl_reason == "Exploit" )
+					event Exploit::url_blacklist_match ( our_ip, other_ip, bl_url, bl_source );
+				else if ( bl_reason == "CnC" )
+					{
+					event CNC::url_blacklist_match ( our_ip, other_ip, bl_url, bl_source, "http" );
+					}
+				}
 			}
 
 		# Conficker signature check
@@ -103,7 +114,9 @@ event dns_request(c: connection, msg: dns_msg, query: string, qtype: count, qcla
 			bl_reason = BlacklistMgr::blacklist_url[query]$reason;
 
 			if ( bl_reason == "CnC" )
+				{
 				event CNC::url_blacklist_match( c$id$orig_h, c$id$resp_h, query, bl_source, "dns" );
+				}
 			}
 		}
 	}

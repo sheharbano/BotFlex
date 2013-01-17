@@ -81,7 +81,7 @@ event bro_init() &priority=25
 	Input::remove("bl_port_stream");	
 	}
 
-event Input::update_finished(name: string, source: string) 
+event Input::end_of_data(name: string, source: string) 
 	{ 
 	if ( name == "bl_port_stream" )
 		{

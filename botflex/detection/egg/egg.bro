@@ -40,16 +40,16 @@ export {
 	type egg_tributary: enum { Tcymru_match, Disguised_exe };
 
 	## Expire interval for the global table concerned with maintaining egg_download/upload info
-	const wnd_egg = 10mins &redef;
+	global wnd_egg = 10mins;
 
 	## The evaluation mode (one of the modes defined in enum evaluation_mode in utils/types)
-	const egg_evaluation_mode = OR; 
+	global egg_evaluation_mode = OR; 
 
 	## Thresholds for different contributors to the major event of egg download/upload
-	const disguised_exe_threshold = 1 &redef;
+	global disguised_exe_threshold = 1;
 
-	const weight_egg_signature_match = 1.0 &redef;
-	const weight_disguised_exe = 0.8 &redef;
+	global weight_egg_signature_match = 1.0;
+	global weight_disguised_exe = 0.8;
 
 	## The event that sufficient evidence has been gathered to declare the
 	## egg download phase of botnet infection lifecycle
@@ -118,7 +118,7 @@ event bro_init() &priority=5
 	Log::create_stream(Egg::LOG, [$columns=Info, $ev=log_egg_download]);
 	}
 
-event Input::update_finished(name: string, source: string) 
+event Input::end_of_data(name: string, source: string) 
 	{
 	if ( name == "config_stream" )
 		{

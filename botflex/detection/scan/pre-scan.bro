@@ -43,11 +43,11 @@ export {
 	const analyze_all_services = T &redef;
 
 	## Thresholds for triggering address and port scan
-	const th_addr_scan = 35 &redef;
-	const th_addr_scan_critical = 20 &redef;
-	const th_port_scan = 15 &redef;
+	global th_addr_scan = 35;
+	global th_addr_scan_critical = 20;
+	global th_port_scan = 15;
 	# Threshold for scanning privileged ports.
-	const th_low_port_troll = 10 &redef;
+	global th_low_port_troll = 10;
 
 	const troll_skip_service = {
 		25/tcp, 21/tcp, 22/tcp, 20/tcp, 80/tcp,
@@ -90,8 +90,8 @@ export {
 	global distinct_backscatter_peers: table[addr] of table[addr] of count
 		&read_expire = 15 min;
 	
-	const wnd_addr_scan = 5mins &redef;
-	const wnd_port_scan = 5mins &redef;
+	global wnd_addr_scan = 5mins;
+	global wnd_port_scan = 5mins;
 
 	global remove_possible_source:
 		function(s: set[addr], idx: addr): interval;
@@ -129,7 +129,7 @@ function distinct_ports_expired(t: table[idx_distinct_ports] of set[port], idx: 
 global distinct_peers: table[idx_distinct_peers] of set[addr] &create_expire=0secs &expire_func=distinct_peers_expired;
 global distinct_ports: table[idx_distinct_ports] of set[port] &create_expire=0secs &expire_func=distinct_ports_expired;	
 
-event Input::update_finished(name: string, source: string) 
+event Input::end_of_data(name: string, source: string) 
 	{
 	if ( name == "config_stream" )
 		{
