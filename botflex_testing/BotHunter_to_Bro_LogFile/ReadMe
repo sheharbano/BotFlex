@@ -1,8 +1,0 @@
-This script takes a BotHunter file as input and produces an equivalent Bro log
-for the same. The good thing about the latter is that you can awk it and mine
-it on command line as much as you want. If you have Bro installed, you don't even
-have to remember column numbers. Just do the following
-
-cat <outputfile_of_this_script> | bro-cut <field_name1> [<fields_name2>,...] | awk <Do what you want>
-
-Remember that awk now knows field_name1 as $1, field_name2 as $2 and so on. 

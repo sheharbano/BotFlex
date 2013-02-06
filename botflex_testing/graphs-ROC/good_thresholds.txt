@@ -1,7 +1,0 @@
-disguised exe 2
-dns_failures  25
-smtp	35
-mx_queries 30
-sqli	10
-ob_addr_scan_c	25
-ob_addr_scan_m	50
