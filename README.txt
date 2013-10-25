@@ -1,4 +1,5 @@
-BotFlex 
+BotFlex
+(works with Bro version 2.0) 
 =====================================================
 @author Sheharbano Khattak 
 (sheharbano.k@gmail.com)
